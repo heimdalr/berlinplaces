@@ -26,6 +26,8 @@ type place struct {
 	Name          string `csv:"name" json:"name"`
 	Street        string `csv:"street" json:"street"`
 	HouseNumber   string `csv:"house_number" json:"houseNumber"`
+	Boundary      string `csv:"boundary" json:"boundary"`
+	Neighbourhood string `csv:"neighbourhood" json:"neighbourhood"`
 	Suburb        string `csv:"suburb" json:"suburb"`
 	Postcode      string `csv:"postcode" json:"postcode"`
 	City          string `csv:"city" json:"city"`

@@ -24,7 +24,7 @@ const annotateDuplicates = (arr) => {
     // add the postcode as discriminator
     for (const i in arr) {
         if (d.has(arr[i].name)) {
-            arr[i].disc = arr[i].place.postcode
+            arr[i].disc = arr[i].place.postcode + " " + arr[i].place.boundary
         } else {
             arr[i].disc = ''
         }
@@ -81,7 +81,29 @@ $('#my_search').typeahead({
         },
     })
     .on("typeahead:selected", function (e, datum) {
-        document.getElementById('result').innerHTML = datum.name + " " + datum.place.houseNumber + ", " + datum.place.postcode + " " + datum.place.city
+        const place = datum.place;
+
+        let str = datum.name;
+        switch (place.class)
+        {
+            case 'highway':
+                add = place.postcode ? " " + place.postcode : "";
+                add += place.neighbourhood ? " " + place.neighbourhood : "";
+                add += place.boundry ? " " + place.boundry : "";
+                add += place.city ? " " + place.city : "";
+                str += add ? ", " + add : "";
+                break;
+            default:
+                street = place.street ? place.street : ""
+                street += place.street && place.houseNumber ? " " + place.houseNumber : ""
+                str += street ? ", " + street : ""
+                add = place.postcode ? " " + place.postcode : ""
+                add += place.neighbourhood ? " " + place.neighbourhood : ""
+                add += place.boundry ? " " + place.boundry : ""
+                add += place.city ? " " + place.city : ""
+                str += add ? ", " + add : ""
+        }
+        document.getElementById('result').innerHTML = str;
     });
 
 
