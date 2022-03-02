@@ -103,6 +103,8 @@ $('#my_search').typeahead({
                 add += place.city ? " " + place.city : ""
                 str += add ? ", " + add : ""
         }
+        //str += ' <a target="_blank" href="https://www.google.com/maps/place/@' + place.lat + "," + place.lon  + ',17z/">(google)</i></a>'
+
         document.getElementById('result').innerHTML = str;
     });
 
