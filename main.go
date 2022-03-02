@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const viperEnvPrefix = "BPLACE"
+const viperEnvPrefix = "BP"
 
 var buildVersion = "to be set by linker"
 var buildGitHash = "to be set by linker"

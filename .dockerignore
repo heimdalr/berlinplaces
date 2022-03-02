@@ -1,9 +1,11 @@
 # By default, ignore everything
 *
-!cwt.sql
 !go.mod
 !go.sum
-!*.go
+!main.go
+!internal
+!pkg
 !.git
 !swagger
 !web
+!berlin.csv

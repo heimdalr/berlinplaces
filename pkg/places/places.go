@@ -130,13 +130,12 @@ func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount in
 			// append this place as an exact match, if its id exactly matches the current prefix
 			if remainderLength == 0 {
 
-				exact := pm[prefixStr].exact
 				r := result{
 					Distance:   0,
 					Percentage: 0,
 					Place:      p,
 				}
-				exact = append(exact, &r)
+				pm[prefixStr].exact = append(pm[prefixStr].exact, &r)
 				continue
 			}
 

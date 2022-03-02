@@ -21,21 +21,21 @@ LD_FLAGS := '-X main.buildVersion=$(BUILD_VERSION) -X main.buildGitHash=$(BUILD_
 MAKEFILE_DIR = $(shell pwd)
 
 GO_FILES := $(wildcard ./pkg/places/*.go ./internal/*.go ./*.go)
-BIN_FILES := berlinplaces
 
-all: $(BIN_FILES)
+all: berlinplaces
 
 fmt:
-	gofmt -s -w .
+	go fmt .
+	go fmt github.com/heimdalr/berlinplaces/pkg/...
 
 test:
-	go test -p 4 -v ./...
+	go test -p 4 -v github.com/heimdalr/berlinplaces/pkg/...
 
 lint:
 	golangci-lint run
 
 coverage:
-	go test -coverprofile=c.out && go tool cover -html=c.out
+	go test -coverprofile=c.out github.com/heimdalr/berlinplaces/pkg/... && go tool cover -html=c.out
 
 berlinplaces: $(GO_FILES)
 	go build \
@@ -46,7 +46,7 @@ berlinplaces: $(GO_FILES)
 run_berlinplaces: berlinplaces
 	./berlinplaces
 
-docker_image: Dockerfile
+build_image: Dockerfile
 	docker build -t berlinplaces .
 
 run_image: stop_image
@@ -57,6 +57,6 @@ stop_image:
 	docker rm berlinplaces 2>/dev/null || true
 
 clean:
-	rm -f $(BIN_FILES)
+	rm -f berlinplaces c.out
 
-.PHONY: all fmt test lint coverage run-syclist clean
+.PHONY: all fmt test lint coverage run_berlinplaces build_image run_image stop_image clean

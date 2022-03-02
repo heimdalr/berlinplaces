@@ -21,11 +21,10 @@ ADD .git ./.git
 RUN export BUILD_GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo '0') && \
     export GIT_TAG=$(git describe --tags 2>/dev/null || echo 'v0.0.0') && \
     export BUILD_VERSION=$(echo $GIT_TAG | grep -P -o '(?<=v)[0-9]+.[0-9]+.[0-9]') && \
-    go build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags "-X main.buildVersion=$BUILD_VERSION -X main.buildGitHash=$BUILD_GIT_HASH" \
     -o berlinplaces \
     .
-
 
 # create api user
 # See https://stackoverflow.com/a/55757473/12429735RUN
@@ -36,11 +35,11 @@ RUN adduser \
     --shell "/sbin/nologin" \
     --no-create-home \
     --uid "10001" \
-    "api" \
+    "api"
 
 # use scratch for the final image
-FROM scratch
-#FROM alpine
+#FROM scratch
+FROM alpine
 
 # copy ca certificates
 COPY --from=buildstage /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
@@ -49,16 +48,22 @@ COPY --from=buildstage /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=buildstage /etc/passwd /etc/passwd
 COPY --from=buildstage /etc/group /etc/group
 
+
+WORKDIR /berlinplaces
+
 # copy server
-COPY --from=buildstage /builddir/main /berlinplaces/berlinplaces
+COPY --from=buildstage /builddir/berlinplaces ./
 
 # copy statics
-COPY swagger/ /berlinplaces/swagger/
-COPY web/ /berlinplaces/web/
-COPY berlin.csv /berlinplaces/berlin.csv
+COPY swagger/ ./swagger/
+COPY web/ ./web/
+COPY berlin.csv ./berlin.csv
 
 # use api user
 USER api:api
 
+#ENV BP_CSV="berlin.csv"
+#ENV BP_PORT=8080
+ENV BP_MODE="release"
 
-ENTRYPOINT [ "/berlinplaces/berlinplaces" ]
+CMD [ "/berlinplaces/berlinplaces" ]

@@ -1,4 +1,7 @@
 /.idea/
 /_data/.nominatim-data
-/_data/berlin.csv
+/berlin.csv
+/berlinplaces
+/c.out
+
 
