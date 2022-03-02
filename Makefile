@@ -24,6 +24,9 @@ GO_FILES := $(wildcard ./pkg/places/*.go ./internal/*.go ./*.go)
 
 all: berlinplaces
 
+berlin.csv: _data/exportCSV.sql _data/extractCSV.sh
+	cd _data && ./extractCSV.sh
+
 fmt:
 	go fmt .
 	go fmt github.com/heimdalr/berlinplaces/pkg/...
