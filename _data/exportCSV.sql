@@ -8,7 +8,7 @@ create table dump as
         p.type,
         p.name -> 'name' as name,
         p.address -> 'street' as street,
-        p.housenumber,
+        p.housenumber as house_number,
         p.address -> 'suburb' as suburb,
         p.postcode,
         p.address -> 'city' as city,

@@ -3,16 +3,16 @@ const annotateDuplicates = (arr) => {
     let u = new Set();
     let d = new Set();
     for (const i in arr) {
-        if (!u.has(arr[i].place.Name)) {
-            u.add(arr[i].place.Name)
+        if (!u.has(arr[i].place.name)) {
+            u.add(arr[i].place.name)
         } else {
-            d.add(arr[i].place.Name)
+            d.add(arr[i].place.name)
         }
     }
     for (const i in arr) {
 
-        if (d.has(arr[i].place.Name)) {
-            arr[i].desc = arr[i].place.Postcode
+        if (d.has(arr[i].place.name)) {
+            arr[i].desc = arr[i].place.postcode
         } else {
             arr[i].desc = ''
         }
@@ -23,7 +23,7 @@ const annotateDuplicates = (arr) => {
 // init Bloodhound
 let colors_suggestions = new Bloodhound({
     datumTokenizer: function(datum) {
-        return Bloodhound.tokenizers.whitespace(datum.place.Name);
+        return Bloodhound.tokenizers.whitespace(datum.place.name);
     },
     queryTokenizer: Bloodhound.tokenizers.whitespace,
     remote: {
@@ -42,14 +42,13 @@ $('#my_search').typeahead({
     },
     {
         name: 'colors',
-        displayKey: 'Name',
-        //displayKey: 'Name',
+        displayKey: 'name',
         source: colors_suggestions.ttAdapter(),
         limit: 'Infinity', // let the server descide the numbert of hits
         templates: {
             suggestion: function(data) {
                 let str = '<div>';
-                switch (data.place.Class)
+                switch (data.place.class)
                 {
                     case 'amenity':
                         str += '<i class="bi bi-cup-straw"></i>'
@@ -60,7 +59,7 @@ $('#my_search').typeahead({
                     default: // 'highway':
                         str += '<i class="bi bi-geo-alt"></i>'
                 }
-                str += data.place.Name
+                str += data.place.name
                 if (data.desc !== '') {
                     str += '<span class="sugestion-discriminator">(' + data.desc + ')</span>';
                 }

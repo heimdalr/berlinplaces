@@ -18,19 +18,19 @@ type result struct {
 }
 
 type place struct {
-	PlaceID       string `csv:"place_id"`
-	ParentPlaceID string `csv:"parent_place_id"`
-	OSMID         string `csv:"osm_id"`
-	Class         string `csv:"class"`
-	Type          string `csv:"type"`
-	Name          string `csv:"name"`
-	Street        string `csv:"street"`
-	HouseNumber   string `csv:"housenumber"`
-	Suburb        string `csv:"suburb"`
-	Postcode      string `csv:"postcode"`
-	City          string `csv:"city"`
-	Lat           string `csv:"lat"`
-	Lon           string `csv:"lon"`
+	PlaceID       string `csv:"place_id" json:"placeID"`
+	ParentPlaceID string `csv:"parent_place_id" json:"parentPlaceID"`
+	OSMID         string `csv:"osm_id" json:"osmID"`
+	Class         string `csv:"class" json:"class"`
+	Type          string `csv:"type" json:"type"`
+	Name          string `csv:"name" json:"name"`
+	Street        string `csv:"street" json:"street"`
+	HouseNumber   string `csv:"house_number" json:"houseNumber"`
+	Suburb        string `csv:"suburb" json:"suburb"`
+	Postcode      string `csv:"postcode" json:"postcode"`
+	City          string `csv:"city" json:"city"`
+	Lat           string `csv:"lat" json:"lat"`
+	Lon           string `csv:"lon" json:"lon"`
 }
 
 func (p place) id() string {

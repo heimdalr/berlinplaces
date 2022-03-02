@@ -34,35 +34,19 @@ paths:
                 - distance: 5
                   percentage: 0
                   place:
-                    PlaceID: '507317'
-                    ParentPlaceID: '465333'
-                    OSMID: ''
-                    Class: highway
-                    Type: residential
-                    Name: Brandenburger Straße
-                    Street: ''
-                    HouseNumber: ''
-                    Suburb: ''
-                    Postcode: '13405'
-                    City: ''
-                    Lat: '52.5558099'
-                    Lon: '13.3138105'
-                - distance: 6
-                  percentage: 0
-                  place:
-                    PlaceID: '533869'
-                    ParentPlaceID: '729551'
-                    OSMID: ''
-                    Class: highway
-                    Type: footway
-                    Name: Brandenburgplatz
-                    Street: ''
-                    HouseNumber: ''
-                    Suburb: ''
-                    Postcode: '12555'
-                    City: ''
-                    Lat: '52.4552786'
-                    Lon: '13.5919091'
+                    placeID: '507317'
+                    parentPlaceID: '465333'
+                    osmID: ''
+                    class: highway
+                    type: residential
+                    name: Brandenburger Straße
+                    street: ''
+                    houseNumber: ''
+                    suburb: ''
+                    postcode: '13405'
+                    city: ''
+                    lat: '52.5558099'
+                    lon: '13.3138105'
         '500':
           description: InternalServerError
 # components
@@ -80,29 +64,29 @@ components:
     place:
       type: object
       properties:
-        PlaceID:
+        placeID:
           type: integer
-        ParentPlaceID:
+        parentPlaceID:
           type: integer
-        OSMID:
+        osmID:
           type: string
-        Class:
+        class:
           type: string
-        Type:
+        type:
           type: string
-        Name:
+        name:
           type: string
-        Street:
+        street:
           type: string
-        HouseNumber:
+        houseNumber:
           type: string
-        Suburb:
+        suburb:
           type: string
-        Postcode:
+        postcode:
           type: string
-        City:
+        city:
           type: string
-        Lat:
+        lat:
           type: string
-        Lon:
+        lon:
           type: string
