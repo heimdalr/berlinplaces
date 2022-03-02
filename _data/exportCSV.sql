@@ -40,7 +40,12 @@ create table dump as
         end as neighbourhood,
         p.address -> 'suburb' as suburb,
         p.postcode,
-        p.address -> 'city' as city,
+        case 
+        	-- if there is a city, take it otherwhise assume Berlin
+        	when p.address -> 'city' != '' 
+        	then p.address -> 'city'
+        	else 'Berlin'
+        end as city,
         ST_Y(p.centroid) as lat,
         ST_X(p.centroid) as lon
     from

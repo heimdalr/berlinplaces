@@ -87,9 +87,9 @@ $('#my_search').typeahead({
         switch (place.class)
         {
             case 'highway':
+                str += place.neighbourhood ? ", " + place.neighbourhood : ""
+                str += place.boundary ? ", " + place.boundary : ""
                 add = place.postcode ? " " + place.postcode : "";
-                add += place.neighbourhood ? " " + place.neighbourhood : "";
-                add += place.boundry ? " " + place.boundry : "";
                 add += place.city ? " " + place.city : "";
                 str += add ? ", " + add : "";
                 break;
@@ -97,9 +97,9 @@ $('#my_search').typeahead({
                 street = place.street ? place.street : ""
                 street += place.street && place.houseNumber ? " " + place.houseNumber : ""
                 str += street ? ", " + street : ""
+                str += place.neighbourhood ? ", " + place.neighbourhood : ""
+                str += place.boundary ? ", " + place.boundary : ""
                 add = place.postcode ? " " + place.postcode : ""
-                add += place.neighbourhood ? " " + place.neighbourhood : ""
-                add += place.boundry ? " " + place.boundry : ""
                 add += place.city ? " " + place.city : ""
                 str += add ? ", " + add : ""
         }
