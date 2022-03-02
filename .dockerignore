@@ -1,0 +1,9 @@
+# By default, ignore everything
+*
+!cwt.sql
+!go.mod
+!go.sum
+!*.go
+!.git
+!swagger
+!web
