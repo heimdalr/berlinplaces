@@ -168,7 +168,7 @@ func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount in
 func (bp Places) Query(_ context.Context, input string) []*result {
 
 	// dissect the input
-	input = sanitizeString(input)
+	input = strings.ToLower(sanitizeString(input))
 	runes := []rune(input)
 	inputLength := len(runes)
 
@@ -176,7 +176,7 @@ func (bp Places) Query(_ context.Context, input string) []*result {
 	if inputLength >= bp.maxPrefixLength {
 
 		// compute the (max) prefix string
-		prefixString := strings.ToLower(string(runes[:bp.maxPrefixLength]))
+		prefixString := string(runes[:bp.maxPrefixLength])
 
 		// if we have a matching entry in the prefix map
 		if pf, ok := bp.prefixMap[prefixString]; ok {
