@@ -1,10 +1,8 @@
 openapi: 3.0.2
 info:
-  title: syclist
+  title: berlinplaces
   version: 0.0.1
-  description: autocomplete and geocode berlin places
-servers:
-  - url: http://localhost:8080
+  description: autocomplete and geocode berlin places (see [example](/web))
 tags:
   - name: api
 paths:
@@ -13,8 +11,8 @@ paths:
     get:
       tags:
         - api
-      summary: get geocodes
-      description: get geocodes
+      summary: get completions
+      description: get completions
       parameters:
         - in: query
           name: text
@@ -31,211 +29,80 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/geoResult'
+                  $ref: '#/components/schemas/placesResult'
+              example:
+                - distance: 5
+                  percentage: 0
+                  place:
+                    PlaceID: '507317'
+                    ParentPlaceID: '465333'
+                    OSMID: ''
+                    Class: highway
+                    Type: residential
+                    Name: Brandenburger Straße
+                    Street: ''
+                    HouseNumber: ''
+                    Suburb: ''
+                    Postcode: '13405'
+                    City: ''
+                    Lat: '52.5558099'
+                    Lon: '13.3138105'
+                - distance: 6
+                  percentage: 0
+                  place:
+                    PlaceID: '533869'
+                    ParentPlaceID: '729551'
+                    OSMID: ''
+                    Class: highway
+                    Type: footway
+                    Name: Brandenburgplatz
+                    Street: ''
+                    HouseNumber: ''
+                    Suburb: ''
+                    Postcode: '12555'
+                    City: ''
+                    Lat: '52.4552786'
+                    Lon: '13.5919091'
         '500':
           description: InternalServerError
-
 # components
 components:
   schemas:
-    geoResult:
+    placesResult:
       type: object
       properties:
-        boundingBox:
-          $ref: '#/components/schemas/geoBoundingBox'
-        lat:
-          type: number
-          format: double
-          description: ""
-          example: 52.51628045
-        lon:
-          type: number
-          format: double
-          description: ""
-          example: 13.377701882994323
-        displayName:
-          type: string
-          description: ""
-          example: "Brandenburger Tor, 1, Pariser Platz, Mitte, Berlin, Brandenburg, 10117, Deutschland"
-        category:
-          type: string
-          description: ""
-          example: "tourism"
-        type:
-          type: string
-          description: ""
-          example: "attraction"
-        importance:
-          type: number
-          format: double
-          description: ""
-          example: 0.201
-        address:
-          $ref: '#/components/schemas/geoAddress'
-    geoBoundingBox:
-      type: object
-      properties:
-        lat1:
-          type: number
-          format: double
-          description: ""
-          example: 52.5161167
-        lat2:
-          type: number
-          format: double
-          description: ""
-          example: 52.5164325
-        lon1:
-          type: number
-          format: double
-          description: ""
-          example: 13.37758
-        lon2:
-          type: number
-          format: double
-          description: ""
-          example: 13.377825
-    geoAddress:
-      type: object
-      properties:
-        houseNumber:
-          type: string
-          description: ""
-          example: "1"
-        road:
-          type: string
-          description: ""
-          example: "Pariser Platz"
-        neighbourhood:
-          type: string
-          description: ""
-          example: ""
-        suburb:
-          type: string
-          description: ""
-          example: "Mitte"
-        borough:
-          type: string
-          description: ""
-          example: "Mitte"
-        city:
-          type: string
-          description: ""
-          example: "Berlin"
-        state:
-          type: string
-          description: ""
-          example: "Brandenburg"
-        postcode:
-          type: string
-          description: ""
-          example: "10117"
-        country:
-          type: string
-          description: ""
-          example: "Deutschland"
-        countryCode:
-          type: string
-          description: ""
-          example: "de"
-    location:
-      type: object
-      required:
-        - latitude
-        - longitude
-      properties:
-        latitude:
-          type: number
-          format: double
-          example: 52.427797390402986
-          description: "Latitude"
-        longitude:
-          type: number
-          format: double
-          example: 13.299215975959674
-          description: "Longitude"
-    #        address:
-    #          type: string
-    #          example: Elisabeth-Feller-Weg, Berlin
-    #          description: |
-    #            the address of associated with this latitude and longitude
-    query:
-      type: object
-      required:
-        - origin
-        - destination
-      properties:
-        origin:
-          $ref: '#/components/schemas/location'
-        destination:
-          $ref: '#/components/schemas/location'
-      example:
-        origin:
-          latitude: 52.427797390402986
-          longitude: 13.299215975959674
-        destination:
-          latitude: 52.51637249274541
-          longitude: 13.377714833723665
-    match:
-      type: object
-      required:
-        - originTime
-        - distanceA
-        - durationA
-        - stopA
-        - departureA
-        - routeName
-        - arrivalB
-        - stopB
-        - durationB
-        - distanceB
-        - destinationTime
-      properties:
-        originTime:
-          type: string
-          description: "estimated time when to leave the origin (ISO 8601)"
-          example: "2018-12-10T13:49:51.141Z"
-        distanceA:
+        distance:
           type: integer
-          format: int64
-          description: "estimated distance (in Meters) to bike from origin to station A"
-          example: 2100
-        durationA:
+        percentage:
           type: integer
-          format: int64
-          description: "estimated duration (in Seconds) it takes to bike from origin to station A"
-          example: 683
-        stopA:
-          type: string
-          description: "human-readable name of station A"
-          example: "S Lichterfelde"
-        departureA:
-          type: string
-          description: "time when the train leaves the station A (ISO 8601)"
-          example: "2018-12-10T13:52:51.141Z"
-        routeName:
-          type: string
-          description: "human-readable name of route"
-          example: "S1"
-        arrivalB:
-          type: string
-          description: "time when the train arrives at station B (ISO 8601)"
-          example: "2018-12-10T14:10:51.141Z"
-        stopB:
-          type: string
-          description: "human-readable name of station B"
-          example: "S Gesundbrunnen"
-        durationB:
+        place:
+          $ref: '#/components/schemas/place'
+    place:
+      type: object
+      properties:
+        PlaceID:
           type: integer
-          format: int64
-          description: "estimated duration (in Seconds) it takes to bike from station B to destination"
-          example: 1200
-        distanceB:
+        ParentPlaceID:
           type: integer
-          format: int64
-          description: "estimated distance (in Meters) to bike from station B to destination"
-          example: 3700
-        destinationTime:
+        OSMID:
           type: string
-          description: "estimated time when the destination is reached (ISO 8601)"
-          example: "2018-12-10T13:49:51.141Z"
+        Class:
+          type: string
+        Type:
+          type: string
+        Name:
+          type: string
+        Street:
+          type: string
+        HouseNumber:
+          type: string
+        Suburb:
+          type: string
+        Postcode:
+          type: string
+        City:
+          type: string
+        Lat:
+          type: string
+        Lon:
+          type: string
