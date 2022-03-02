@@ -6,8 +6,8 @@ import (
 	"github.com/dn365/gin-zerolog"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/heimdalr/berlinplaces/berlinplaces"
 	"github.com/heimdalr/berlinplaces/internal"
+	"github.com/heimdalr/berlinplaces/places"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -108,7 +108,7 @@ func (app *App) Initialize() error {
 	router.StaticFS("web/", http.Dir("web"))
 
 	// register berlinPlaces routes
-	berlinPlaces, err := berlinplaces.NewBerlinPlaces(
+	berlinPlaces, err := places.NewPlaces(
 		viper.GetString("CSV"),
 		10,
 		6,

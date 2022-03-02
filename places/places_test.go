@@ -1,4 +1,4 @@
-package berlinplaces
+package places
 
 import (
 	"context"
@@ -18,7 +18,7 @@ func TestPlaces_simple(t *testing.T) {
 	}
 	pm := computePrefixMap(places, 3, 3)
 
-	berlinPlaces := &BerlinPlaces{
+	berlinPlaces := &Places{
 		places:             places,
 		prefixMap:          pm,
 		maxPrefixLength:    3,
@@ -37,7 +37,7 @@ func TestPlaces_simple(t *testing.T) {
 
 }
 func TestPlaces_query(t *testing.T) {
-	berlinPlaces, err := NewBerlinPlaces("berlin.csv", 8, 5, 4)
+	berlinPlaces, err := NewPlaces("berlin.csv", 8, 5, 4)
 	if err != nil {
 		t.Fatal(err)
 	}

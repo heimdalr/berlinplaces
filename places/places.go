@@ -1,4 +1,4 @@
-package berlinplaces
+package places
 
 import (
 	"context"
@@ -51,7 +51,7 @@ type prefix struct {
 	places []*place
 }
 
-type BerlinPlaces struct {
+type Places struct {
 
 	// a list of all places
 	places []*place
@@ -69,7 +69,7 @@ type BerlinPlaces struct {
 	levMinimum int
 }
 
-func NewBerlinPlaces(csvPath string, maxPrefixLength, minCompletionCount, levMinimum int) (*BerlinPlaces, error) {
+func NewPlaces(csvPath string, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
 
 	// open the csv
 	file, err := os.Open(csvPath)
@@ -89,7 +89,7 @@ func NewBerlinPlaces(csvPath string, maxPrefixLength, minCompletionCount, levMin
 	// compute pm
 	pm := computePrefixMap(places, maxPrefixLength, minCompletionCount)
 
-	return &BerlinPlaces{
+	return &Places{
 		places:             places,
 		prefixMap:          pm,
 		maxPrefixLength:    maxPrefixLength,
@@ -175,7 +175,7 @@ func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount in
 	return pm
 }
 
-func (bp BerlinPlaces) Query(_ context.Context, input string) []*result {
+func (bp Places) Query(_ context.Context, input string) []*result {
 
 	// dissect the input
 	input = sanitizeString(input)
@@ -226,7 +226,7 @@ func (bp BerlinPlaces) Query(_ context.Context, input string) []*result {
 	return []*result{}
 }
 
-func (bp BerlinPlaces) levenshtein(places []*place, text string) []*result {
+func (bp Places) levenshtein(places []*place, text string) []*result {
 
 	// for each place compute the Levenshtein-Distance between its name and the given text
 	results := make([]*result, len(places))

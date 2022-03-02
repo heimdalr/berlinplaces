@@ -3,17 +3,17 @@ package internal
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/heimdalr/berlinplaces/berlinplaces"
+	"github.com/heimdalr/berlinplaces/places"
 	"net/http"
 	"time"
 )
 
 type BerlinPlacesAPI struct {
-	berlinPlaces *berlinplaces.BerlinPlaces
+	berlinPlaces *places.Places
 }
 
 // NewBerlinPlacesAPI initializes the BerlinPlacesAPI.
-func NewBerlinPlacesAPI(berlinPlaces *berlinplaces.BerlinPlaces) BerlinPlacesAPI {
+func NewBerlinPlacesAPI(berlinPlaces *places.Places) BerlinPlacesAPI {
 	return BerlinPlacesAPI{
 		berlinPlaces: berlinPlaces,
 	}
