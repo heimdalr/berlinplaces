@@ -110,7 +110,9 @@ func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount in
 	// sort allPlaces by name
 	sort.Slice(allPlaces,
 		func(i, j int) bool {
-			return allPlaces[i].Name < allPlaces[j].Name
+			li := allPlaces[i].Name
+			lj := allPlaces[j].Name
+			return len(li) < len(lj) || (len(li) == len(lj) && allPlaces[i].Name < allPlaces[j].Name)
 		})
 
 	for d := 1; d <= maxPrefixLength; d++ {
