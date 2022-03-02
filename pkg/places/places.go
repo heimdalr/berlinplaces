@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/agnivade/levenshtein"
 	"github.com/gocarina/gocsv"
-	"os"
+	"io"
 	"sort"
 	"strings"
 	"unicode"
@@ -69,21 +69,12 @@ type Places struct {
 	levMinimum int
 }
 
-func NewPlaces(csvPath string, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
-
-	// open the csv
-	file, err := os.Open(csvPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open '%s': %w", csvPath, err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
+func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
 
 	// unmarshal
 	var places []*place
-	if err = gocsv.Unmarshal(file, &places); err != nil {
-		return nil, fmt.Errorf("failed to unmarshall '%s': %w", csvPath, err)
+	if err := gocsv.Unmarshal(csv, &places); err != nil {
+		return nil, fmt.Errorf("failed to unmarshall CSV data: %w", err)
 	}
 
 	// compute pm

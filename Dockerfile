@@ -2,32 +2,17 @@
 FROM golang:bullseye AS buildstage
 
 # update and get needed packages
-RUN apt-get update
-RUN apt-get install -y sqlite3 unzip
+#RUN apt-get update
+#RUN apt-get install -y sqlite3 unzip
 
-# download the gtfs tool (see below)
-RUN go install github.com/heimdalr/gtfs/cmd/gtfs@latest
-
-# download and unpack VBB data
-WORKDIR /vbb
-RUN wget https://www.vbb.de/fileadmin/user_upload/VBB/Dokumente/API-Datensaetze/gtfs-mastscharf/GTFS.zip
-RUN unzip GTFS.zip
-
-# mangle the VBB data into a SQLite DB
-WORKDIR /
-RUN gtfs import /vbb vbb.db
-RUN gtfs trim vbb.db "S-Bahn"
-
-# mangle the VBB DB to suite syclist needs
-ADD cwt.sql .
-RUN cat cwt.sql | sqlite3 /vbb.db
-
-# download syclist dependencies
-WORKDIR /syclist
+# download app dependencies
+WORKDIR /builddir
 COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
-ADD *.go ./
+COPY main.go ./
+COPY internal/ ./internal/
+COPY pkg/ ./pkg/
 
 # add the .git directory as we do versioning based on hash and tag
 ADD .git ./.git
@@ -38,23 +23,42 @@ RUN export BUILD_GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo '0') && \
     export BUILD_VERSION=$(echo $GIT_TAG | grep -P -o '(?<=v)[0-9]+.[0-9]+.[0-9]') && \
     go build \
     -ldflags "-X main.buildVersion=$BUILD_VERSION -X main.buildGitHash=$BUILD_GIT_HASH" \
-    -o syclist \
+    -o berlinplaces \
     .
 
-# use debian for running (sqlite needs CGO which contradicts alpine and busybox)
-FROM debian
 
-# copy executable and DB from the buildstage
-COPY --from=buildstage /syclist/syclist /
-COPY --from=buildstage /vbb.db /
+# create api user
+# See https://stackoverflow.com/a/55757473/12429735RUN
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "10001" \
+    "api" \
 
-# add statics
-ADD swagger /swagger
-ADD web /web
+# use scratch for the final image
+FROM scratch
+#FROM alpine
+
+# copy ca certificates
+COPY --from=buildstage /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# import the user and group files from the builder
+COPY --from=buildstage /etc/passwd /etc/passwd
+COPY --from=buildstage /etc/group /etc/group
+
+# copy server
+COPY --from=buildstage /builddir/main /berlinplaces/berlinplaces
+
+# copy statics
+COPY swagger/ /berlinplaces/swagger/
+COPY web/ /berlinplaces/web/
+COPY berlin.csv /berlinplaces/berlin.csv
+
+# use api user
+USER api:api
 
 
-ENV SYCLIST_DB=/vbb.db
-ENV SYCLIST_MODE=release
-#ENV SYCLIST_GEOAPIFY_KEY=XYZ
-
-ENTRYPOINT [ "/syclist" ]
+ENTRYPOINT [ "/berlinplaces/berlinplaces" ]

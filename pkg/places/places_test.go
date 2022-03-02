@@ -1,43 +1,20 @@
-package places
+package places_test
 
 import (
 	"context"
+	"github.com/heimdalr/berlinplaces/pkg/places"
+	"strings"
 	"testing"
 )
 
-func TestPlaces_simple(t *testing.T) {
-	places := []*place{
-		{
-			Name:     "Elisabeth-Feller-Weg",
-			Postcode: "12205",
-		},
-		{
-			Name:     "Krokusstraße",
-			Postcode: "12357",
-		},
-	}
-	pm := computePrefixMap(places, 3, 3)
-
-	berlinPlaces := &Places{
-		places:             places,
-		prefixMap:          pm,
-		maxPrefixLength:    3,
-		minCompletionCount: 3,
-		levMinimum:         2,
-	}
-	r := berlinPlaces.Query(context.Background(), "Elisabeth-Feller-Weg")
-	if len(r) != 1 {
-		t.Errorf("expected 1, got %d", len(r))
-	}
-	got := r[0].Place.Name
-	want := "Elisabeth-Feller-Weg"
-	if got != want {
-		t.Errorf("got %s, want %s", got, want)
-	}
-
-}
 func TestPlaces_query(t *testing.T) {
-	berlinPlaces, err := NewPlaces("berlin.csv", 8, 5, 4)
+	csvString := `
+place_id,parent_place_id,class,type,name,street,housenumber,suburb,postcode,city,lat,lon
+541950,465999,highway,living_street,Elisabeth-Feller-Weg,,,,12205,,52.4280125,13.2992439
+621178,709865,highway,residential,Krokusstraße,,,,12357,,52.4229373,13.4951325
+`
+	csvReader := strings.NewReader(csvString)
+	berlinPlaces, err := places.NewPlaces(csvReader, 8, 5, 4)
 	if err != nil {
 		t.Fatal(err)
 	}

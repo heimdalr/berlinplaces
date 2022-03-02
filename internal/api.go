@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/heimdalr/berlinplaces/places"
+	"github.com/heimdalr/berlinplaces/pkg/places"
 	"net/http"
 	"time"
 )

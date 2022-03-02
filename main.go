@@ -7,7 +7,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/heimdalr/berlinplaces/internal"
-	"github.com/heimdalr/berlinplaces/places"
+	"github.com/heimdalr/berlinplaces/pkg/places"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -80,7 +80,7 @@ func viperSetup() {
 	// default values
 	viper.SetDefault("MODE", "debug") // debug->debug or anything for release
 	viper.SetDefault("PORT", "8080")
-	viper.SetDefault("CSV", "_data/berlin.csv") // relative to project root
+	viper.SetDefault("CSV", "berlin.csv") // relative to project root
 
 }
 
@@ -107,16 +107,22 @@ func (app *App) Initialize() error {
 	// register web routes
 	router.StaticFS("web/", http.Dir("web"))
 
-	// register berlinPlaces routes
-	berlinPlaces, err := places.NewPlaces(
-		viper.GetString("CSV"),
-		10,
-		6,
-		4,
-	)
+	// open the berlin places csv
+	file, err := os.Open(viper.GetString("CSV"))
+	if err != nil {
+		return fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	// initialize places
+	berlinPlaces, err := places.NewPlaces(file, 10, 6, 4)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize berlinPlaces: %w", err))
 	}
+
+	// register places routes
 	internal.NewBerlinPlacesAPI(berlinPlaces).RegisterRoutes(router.Group("/api"))
 
 	// version

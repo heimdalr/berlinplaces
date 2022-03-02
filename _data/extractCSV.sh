@@ -2,7 +2,7 @@
 
 CONTAINER_NAME=nominatim
 NOMINATIM_DATA=${PWD}/.nominatim-data
-CSV_FILE=${PWD}/berlin.csv
+CSV_FILE=${PWD}/../berlin.csv
 SQL_FILE=${PWD}/exportCSV.sql
 CONTAINER_CHECK_URL=http://localhost:8081/search.php?q=Oranienburger
 
