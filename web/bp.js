@@ -61,7 +61,7 @@ $('#my_search').typeahead({
                         str += '<i class="bi bi-geo-alt"></i>'
                 }
                 str += data.place.Name
-                if (data.desc != '') {
+                if (data.desc !== '') {
                     str += '<span class="sugestion-discriminator">(' + data.desc + ')</span>';
                 }
                 return str + '</div>';
@@ -72,3 +72,8 @@ $('#my_search').typeahead({
         console.log(datum)
     });
 
+
+$(document).ready(function(){
+    document.getElementById('my_search').focus();
+
+})
