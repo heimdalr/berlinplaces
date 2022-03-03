@@ -117,7 +117,7 @@ func (app *App) Initialize() error {
 	}()
 
 	// initialize places
-	berlinPlaces, err := places.NewPlaces(file, 6, 6, 4)
+	berlinPlaces, err := places.NewPlaces(file, 6, 6, 0)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize berlinPlaces: %w", err))
 	}

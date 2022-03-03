@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/agnivade/levenshtein"
+	"github.com/dgraph-io/ristretto"
 	"github.com/gocarina/gocsv"
 	"io"
 	"sort"
@@ -64,6 +65,9 @@ type Places struct {
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
 
+	// cache for prefixes with typos
+	cache *ristretto.Cache
+
 	// the minimum number of completions to compute
 	minCompletionCount int
 
@@ -82,9 +86,20 @@ func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum in
 	// compute pm
 	pm := computePrefixMap(places, maxPrefixLength, minCompletionCount)
 
+	// initialize cache
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 1e6,     // number of keys to track frequency of (1M).
+		MaxCost:     1 << 30, // maximum cost of cache (1GB).
+		BufferItems: 64,      // number of keys per Get buffer.
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize cache: %w", err)
+	}
+
 	return &Places{
 		places:             places,
 		prefixMap:          pm,
+		cache:              cache,
 		maxPrefixLength:    maxPrefixLength,
 		minCompletionCount: minCompletionCount,
 		levMinimum:         levMinimum,
@@ -176,6 +191,14 @@ func (bp Places) Query(_ context.Context, input string) []*result {
 	runes := []rune(input)
 	inputLength := len(runes)
 
+	// if we have a matching cache entry return it
+	cacheResults, hit := bp.cache.Get(input)
+	if hit {
+		if results, ok := cacheResults.([]*result); ok {
+			return results
+		}
+	}
+
 	// if input is longer than max prefix length
 	if inputLength >= bp.maxPrefixLength {
 
@@ -186,11 +209,26 @@ func (bp Places) Query(_ context.Context, input string) []*result {
 		if pf, ok := bp.prefixMap[prefixString]; ok {
 
 			// do Levenshtein on the places associated with this prefix
-			return bp.levenshtein(pf.places, input)
+			results := bp.levenshtein(pf.places, input)
+
+			// try to cache results (i.e. we extend the prefix map by longer prefixes)
+			go func() {
+				_ = bp.cache.Set(input, results, 0)
+			}()
+
+			return results
+
 		} else {
 
 			// do Levenshtein on all places
-			return bp.levenshtein(bp.places, input)
+			results := bp.levenshtein(bp.places, input)
+
+			// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
+			go func() {
+				_ = bp.cache.Set(input, results, 0)
+			}()
+
+			return results
 		}
 	}
 
@@ -213,7 +251,14 @@ func (bp Places) Query(_ context.Context, input string) []*result {
 	if inputLength >= bp.levMinimum {
 
 		// do levenshtein on the complete set of places
-		return bp.levenshtein(bp.places, input)
+		results := bp.levenshtein(bp.places, input)
+
+		// try to cache results
+		go func() {
+			_ = bp.cache.Set(input, results, 0)
+		}()
+
+		return results
 	}
 
 	// as a last resort return the empty list
