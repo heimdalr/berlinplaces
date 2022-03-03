@@ -34,19 +34,15 @@ paths:
                 - distance: 5
                   percentage: 0
                   place:
-                    placeID: '507317'
-                    parentPlaceID: '465333'
-                    osmID: ''
+                    placeID: 507317
+                    parentPlaceID: 465333
                     class: highway
                     type: residential
                     name: Brandenburger Straße
-                    street: ''
-                    houseNumber: ''
-                    suburb: ''
                     postcode: '13405'
-                    city: ''
-                    lat: '52.5558099'
-                    lon: '13.3138105'
+                    city: Berlin
+                    lat: 52.5558099
+                    lon: 13.3138105
         '500':
           description: InternalServerError
 # components
@@ -63,11 +59,25 @@ components:
           $ref: '#/components/schemas/place'
     place:
       type: object
+      required:
+        - placeID
+        - parentPlaceID
+        - class
+        - type
+        - name
+        - postcode
+        - city
+        - lat
+        - lon
+        - relevance
+        - simpleName
       properties:
         placeID:
-          type: integer
+          type: number
+          format: int64
         parentPlaceID:
-          type: integer
+          type: number
+          format: int64
         osmID:
           type: string
         class:
@@ -87,6 +97,12 @@ components:
         city:
           type: string
         lat:
-          type: string
+          type: number
+          format: float64
         lon:
+          type: number
+          format: float64
+        relevance:
+          type: number
+        simpleName:
           type: string
