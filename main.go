@@ -137,7 +137,11 @@ func (app *App) Initialize() error {
 
 	// version
 	router.GET("/version", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"version": buildVersion, "hash": buildGitHash})
+		c.JSON(http.StatusOK, gin.H{
+			"version":          buildVersion,
+			"hash":             buildGitHash,
+			"queryCount":       berlinPlaces.Metrics().QueryCount,
+			"avgQueryDuration": fmt.Sprintf("%dµs", berlinPlaces.Metrics().AvgLookupTime.Microseconds())})
 	})
 
 	// redirect / to /web

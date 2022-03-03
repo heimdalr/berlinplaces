@@ -9,7 +9,9 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 	"unicode"
 )
 
@@ -72,12 +74,19 @@ type Places struct {
 
 	// cache for longer prefixes and prefixes with typo
 	cache *ristretto.Cache
+
+	// average lookup time
+	m            sync.RWMutex
+	avgQueryTime time.Duration
+	queryCount   int64
 }
 
 type Metrics struct {
-	PlaceCount   int
-	PrefixCount  int
-	CacheMetrics *ristretto.Metrics
+	PlaceCount    int
+	PrefixCount   int
+	CacheMetrics  *ristretto.Metrics
+	QueryCount    int64
+	AvgLookupTime time.Duration
 }
 
 func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
@@ -199,15 +208,39 @@ func (bp *Places) computePrefixMap() {
 	bp.prefixMap = pm
 }
 
-func (bp Places) Metrics() Metrics {
+func (bp *Places) Metrics() Metrics {
+	bp.m.RLock()
+	defer bp.m.RUnlock()
+	avgLookupTime := bp.avgQueryTime
 	return Metrics{
-		PlaceCount:   len(bp.places),
-		PrefixCount:  len(bp.prefixMap),
-		CacheMetrics: bp.cache.Metrics,
+		PlaceCount:    len(bp.places),
+		PrefixCount:   len(bp.prefixMap),
+		CacheMetrics:  bp.cache.Metrics,
+		AvgLookupTime: avgLookupTime,
+		QueryCount:    bp.queryCount,
 	}
 }
 
-func (bp Places) Query(_ context.Context, input string) []*result {
+func (bp *Places) Query(ctx context.Context, input string) []*result {
+	start := time.Now()
+	results := bp.query(ctx, input)
+	end := time.Now()
+	duration := end.Sub(start)
+	go func() {
+		bp.m.Lock()
+		defer bp.m.Unlock()
+		bp.queryCount += 1
+		if bp.avgQueryTime == 0 {
+			bp.avgQueryTime = duration
+		} else {
+			bp.avgQueryTime = (bp.avgQueryTime + duration) / 2
+		}
+	}()
+
+	return results
+
+}
+func (bp *Places) query(_ context.Context, input string) []*result {
 
 	// dissect the input
 	input = sanitizeString(input)
