@@ -6,7 +6,6 @@ import (
 	"github.com/agnivade/levenshtein"
 	"github.com/dgraph-io/ristretto"
 	"github.com/gocarina/gocsv"
-	"github.com/rs/zerolog/log"
 	"io"
 	"sort"
 	"strings"
@@ -330,12 +329,6 @@ func (bp *Places) updateRelevance(results []*result) {
 
 			// increase relevance (thread safe)
 			atomic.AddUint64(&r.Place.Relevance, 1)
-
-			log.Debug().
-				Str("id", r.Place.PlaceID).
-				Str("name", r.Place.Name).
-				Uint64("relevance", r.Place.Relevance).
-				Msg("increased relevance for place")
 
 		} else {
 
