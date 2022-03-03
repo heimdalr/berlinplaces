@@ -169,7 +169,7 @@ Autocompleting on "Oanienburger Straße" (note the missing "r" in the beginning)
 [GIN] | 200 | 19.156892ms | GET "/api/?text=Oanienburger%20Stra%C3%9Fe"
 ~~~~
 
-Early typos rune the lookup. The average response time over all 19 calls (one for each character typed) is ~13ms. 
+Early typos ruine the lookup. The average response time over all 19 calls (one for each character typed) is ~13ms. 
 
 The correct suggestion is at the top of the suggestion list at "Oanienburger S".
 
