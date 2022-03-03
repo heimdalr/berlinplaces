@@ -65,7 +65,7 @@ type Places struct {
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
 
-	// cache for prefixes with typos
+	// cache for longer prefixes and prefixes with typo
 	cache *ristretto.Cache
 
 	// the minimum number of completions to compute
