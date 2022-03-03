@@ -19,6 +19,8 @@ good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deplo
 - [latency](#latency): basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S)
 - hit rate: berlinplaces uses lookup tables for speed and Levenshtein for typos
 - slim and easy: 25MB Docker image (incl. REST-server, OSM-data, swagger-docs and example website) 
+
+![demo](berlinplaces.gif)
   
 ## Getting Started
 
@@ -89,9 +91,9 @@ which will result in something like:
 
 ## OSM Data
 
-The repository at hand contains prepared OSM data ([`./berlin.csv`](berlin.csv)). 
+The repository at hand contains prepared OSM data ([`berlin.csv`](berlin.csv)). 
 
-See [`./_data/README.md`](./_data/README.md) for how to generate this CSV file.  
+See [`_data/README.md`](_data/README.md) for how to generate this CSV file.  
 
 ## Latency
 
