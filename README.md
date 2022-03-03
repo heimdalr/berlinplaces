@@ -106,7 +106,8 @@ In the following we look at different lookup latency based on:
 - `minCompletionCount = 6` (the minimum number of completions to compute)
 - `levMinimum = 0` (the minimum input length before doing Levenshtein)
 
-Essential basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S).
+Essential basic tests show ~200µs without typos and ~12ms with early typos (if completed first time) (locally, on an 
+i5-4670S).
 
 ### Without typos
 
