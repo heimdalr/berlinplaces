@@ -20,7 +20,7 @@ good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deplo
 - hit rate: berlinplaces uses lookup tables for speed and Levenshtein for typos
 - slim and easy: 25MB Docker image (incl. REST-server, OSM-data, swagger-docs and example website) 
 
-![demo](berlinplaces.gif)
+[![demo](berlinplaces.png)](berlinplaces.gif)
   
 ## Getting Started
 
