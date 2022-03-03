@@ -20,23 +20,23 @@ type result struct {
 }
 
 type place struct {
-	PlaceID       string `csv:"place_id" json:"placeID"`
-	ParentPlaceID string `csv:"parent_place_id" json:"parentPlaceID"`
-	OSMID         string `csv:"osm_id" json:"osmID,omitempty"`
-	Class         string `csv:"class" json:"class"`
-	Type          string `csv:"type" json:"type"`
-	Name          string `csv:"name" json:"name"`
-	Street        string `csv:"street" json:"street,omitempty"`
-	HouseNumber   string `csv:"house_number" json:"houseNumber,omitempty"`
-	Boundary      string `csv:"boundary" json:"boundary,omitempty"`
-	Neighbourhood string `csv:"neighbourhood" json:"neighbourhood,omitempty"`
-	Suburb        string `csv:"suburb" json:"suburb,omitempty"`
-	Postcode      string `csv:"postcode" json:"postcode"`
-	City          string `csv:"city" json:"city"`
-	Lat           string `csv:"lat" json:"lat"`
-	Lon           string `csv:"lon" json:"lon"`
-	Relevance     uint64 `json:"relevance"`
-	SimpleName    string `json:"simpleName"` // the sanitized name used for lookups
+	PlaceID       int64   `csv:"place_id" json:"placeID"`
+	ParentPlaceID int64   `csv:"parent_place_id" json:"parentPlaceID"`
+	OSMID         string  `csv:"osm_id" json:"osmID,omitempty"`
+	Class         string  `csv:"class" json:"class"`
+	Type          string  `csv:"type" json:"type"`
+	Name          string  `csv:"name" json:"name"`
+	Street        string  `csv:"street" json:"street,omitempty"`
+	HouseNumber   string  `csv:"house_number" json:"houseNumber,omitempty"`
+	Boundary      string  `csv:"boundary" json:"boundary,omitempty"`
+	Neighbourhood string  `csv:"neighbourhood" json:"neighbourhood,omitempty"`
+	Suburb        string  `csv:"suburb" json:"suburb,omitempty"`
+	Postcode      string  `csv:"postcode" json:"postcode"`
+	City          string  `csv:"city" json:"city"`
+	Lat           float64 `csv:"lat" json:"lat"`
+	Lon           float64 `csv:"lon" json:"lon"`
+	Relevance     uint64  `json:"relevance"`
+	SimpleName    string  `json:"simpleName"` // the sanitized name used for lookups
 }
 
 // prefix represents precomputed completions and places for a given prefix
