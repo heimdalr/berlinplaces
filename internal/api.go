@@ -22,6 +22,7 @@ func NewBerlinPlacesAPI(berlinPlaces *places.Places) BerlinPlacesAPI {
 // RegisterRoutes registers BerlinPlacesAPI routes.
 func (bpa BerlinPlacesAPI) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/", bpa.get)
+	router.GET("", bpa.get)
 }
 
 func (bpa BerlinPlacesAPI) get(c *gin.Context) {
