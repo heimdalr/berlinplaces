@@ -20,7 +20,7 @@ paths:
             type: string
           description: the text to look up
           example:
-            Brandenburger Tor
+            elisabethfellerweg
       responses:
         '200':
           description: OK (success)
@@ -31,18 +31,38 @@ paths:
                 items:
                   $ref: '#/components/schemas/placesResult'
               example:
-                - distance: 5
+                - distance: 0
                   percentage: 0
                   place:
-                    placeID: 507317
-                    parentPlaceID: 465333
+                    placeID: 541950
+                    parentPlaceID: 465999
+                    class: highway
+                    type: living_street
+                    name: Elisabeth-Feller-Weg
+                    boundary: Lichterfelde
+                    neighbourhood: Schweizer Viertel
+                    postcode: '12205'
+                    city: Berlin
+                    lat: 52.4280125
+                    lon: 13.2992439
+                    relevance: 1
+                    simpleName: elisabethfellerweg
+                - distance: 6
+                  percentage: 0
+                  place:
+                    placeID: 526802
+                    parentPlaceID: 729970
                     class: highway
                     type: residential
-                    name: Brandenburger Straße
-                    postcode: '13405'
+                    name: Elisabethweg
+                    boundary: Pankow
+                    postcode: '13187'
                     city: Berlin
-                    lat: 52.5558099
-                    lon: 13.3138105
+                    lat: 52.5741318
+                    lon: 13.4058554
+                    relevance: 0
+                    simpleName: elisabethweg
+
         '500':
           description: InternalServerError
 # components
