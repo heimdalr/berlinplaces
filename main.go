@@ -117,10 +117,20 @@ func (app *App) Initialize() error {
 	}()
 
 	// initialize places
-	berlinPlaces, err := places.NewPlaces(file, 6, 6, 0)
+	maxPrefixLength := 6
+	minCompletionCount := 6
+	levMinimum := 0
+	berlinPlaces, err := places.NewPlaces(file, maxPrefixLength, minCompletionCount, levMinimum)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize berlinPlaces: %w", err))
 	}
+	log.Debug().
+		Int("maxPrefixLength", maxPrefixLength).
+		Int("minCompletionCount", minCompletionCount).
+		Int("levMinimum", levMinimum).
+		Int("placeCount", berlinPlaces.Metrics().PlaceCount).
+		Int("prefixCount", berlinPlaces.Metrics().PrefixCount).
+		Msg("initialized places")
 
 	// register places routes
 	internal.NewBerlinPlacesAPI(berlinPlaces).RegisterRoutes(router.Group("/api"))

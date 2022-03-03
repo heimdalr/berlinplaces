@@ -56,23 +56,29 @@ type prefix struct {
 
 type Places struct {
 
-	// a list of all places
-	places []*place
-
 	// maximum prefix length
 	maxPrefixLength int
-
-	// a map associating places with prefixes.
-	prefixMap map[string]*prefix
-
-	// cache for longer prefixes and prefixes with typo
-	cache *ristretto.Cache
 
 	// the minimum number of completions to compute
 	minCompletionCount int
 
 	// the minimum input length before doing Levenshtein
 	levMinimum int
+
+	// a list of all places
+	places []*place
+
+	// a map associating places with prefixes.
+	prefixMap map[string]*prefix
+
+	// cache for longer prefixes and prefixes with typo
+	cache *ristretto.Cache
+}
+
+type Metrics struct {
+	PlaceCount   int
+	PrefixCount  int
+	CacheMetrics *ristretto.Metrics
 }
 
 func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
@@ -194,6 +200,14 @@ func (bp *Places) computePrefixMap() {
 	bp.prefixMap = pm
 }
 
+func (bp Places) Metrics() Metrics {
+	return Metrics{
+		PlaceCount:   len(bp.places),
+		PrefixCount:  len(bp.prefixMap),
+		CacheMetrics: bp.cache.Metrics,
+	}
+}
+
 func (bp Places) Query(_ context.Context, input string) []*result {
 
 	// dissect the input
@@ -275,7 +289,7 @@ func (bp Places) Query(_ context.Context, input string) []*result {
 	return []*result{}
 }
 
-func (bp Places) levenshtein(places []*place, text string) []*result {
+func (bp *Places) levenshtein(places []*place, text string) []*result {
 
 	// for each place compute the Levenshtein-Distance between its simple name and the given text
 	results := make([]*result, len(places))
@@ -306,7 +320,7 @@ func (bp Places) levenshtein(places []*place, text string) []*result {
 	return topResults
 }
 
-func (bp Places) updateRelevance(results []*result) {
+func (bp *Places) updateRelevance(results []*result) {
 
 	// for each result
 	for _, r := range results {
