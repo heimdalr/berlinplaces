@@ -111,7 +111,7 @@ i5-4670S).
 
 Each of the following tests was thereby started with an empty cache.
 
-### Without typos
+### Without Typos
 
 Autocompleting on "oranienburger straße":
 
@@ -143,7 +143,7 @@ The average response time over all 20 calls (one for each character typed) is ~2
 The correct "Oranienburger Straße" is suggested after typing "oranien" and at the top of the suggestion list after 
 typing "oranienburger s".
 
-### Early typos
+### Early Typos 
 
 Early typos are typos that occur inside the prefix lookup.
 
@@ -179,14 +179,14 @@ In this case, there are no prepared completion for the prefix "oa" (and
 following). Thus, berlinplaces does Levenshtein on the complete set for this
 call and all subsequent prefixes.
 
-### Late typos
+### Repeated Early Typos
 
 Early typos ruin the lookup. However, berlinplaces caches the results of input
 completions for faulty inputs and inputs longer than the configured
 `maxPrefixLength`. Thus running the same faulty input ("oanienburgerstraße")
 again, results in an average response-time of 194µs.
 
-### Late typos
+### Late Typos
 
 Late typos are typos that occur outside / after the prefix lookup.
 
