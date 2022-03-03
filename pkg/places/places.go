@@ -145,7 +145,7 @@ func (bp *Places) computePrefixMap() {
 		func(i, j int) bool {
 			li := bp.places[i].SimpleName
 			lj := bp.places[j].SimpleName
-			return len(li) < len(lj) || (len(li) == len(lj) && li < li)
+			return len(li) < len(lj) || (len(li) == len(lj) && li < lj)
 		})
 
 	for d := 1; d <= bp.maxPrefixLength; d++ {
