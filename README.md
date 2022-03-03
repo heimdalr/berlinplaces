@@ -17,12 +17,11 @@ good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deplo
 
 berlinplace: 
 
-- **free**: it's here and OSS
-- **latency**: basic tests show ~4ms without typos ~13ms with early typos (locally, on i5-4670S CPU @ 3.10GHz with 32GB RAM)
-- **hit rate**: berlin places uses lookup tables for speed and Levenshtein for typos
-- **slim and easy**: the single Docker image bundling REST-server, OSM-data, swagger-docs and an example website 
-  amounts to ~25MB 
-
+- free: it's here and OSS
+- latency: basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S)
+- hit rate: berlin places uses lookup tables for speed and Levenshtein for typos
+- slim and easy: 25MB Docker image (incl. REST-server, OSM-data, swagger-docs and example website) 
+  
 
 ## Latency
 
@@ -32,7 +31,7 @@ In the following we look at different lookup latency based on:
 - `minCompletionCount = 6` (the minimum number of completions to compute)
 - `levMinimum = 4` (the minimum input length before doing Levenshtein)
 
-locally, on i5-4670S CPU @ 3.10GHz with 32GB RAM.
+Essential basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S).
 
 ### Without typos
 
