@@ -66,15 +66,32 @@ which will result in something like:
     }
   },
   {
-    "distance": 10,
+    "distance": 12,
     "percentage": 0,
     "place": {
-      "placeID": "691734",
-      "parentPlaceID": "129539",  
-  ...
+      "placeID": "722480",
+      "parentPlaceID": "491443",
+      "osmID": "",
+      "class": "highway",
+      "type": "primary",
+      "name": "Oranienburger Chaussee",
+      "street": "",
+      "houseNumber": "",
+      "suburb": "",
+      "postcode": "13465",
+      "city": "Berlin",
+      "lat": "52.6300644",
+      "lon": "13.3105084"
+    }
+  }
 ]
 ~~~~
 
+## OSM Data
+
+The repository at hand contains prepared OSM data ([`./berlin.csv`](berlin.csv)). 
+
+See [`./_data/README.md`](./_data/README.md) for how to generate this CSV file.  
 
 ## Latency
 
