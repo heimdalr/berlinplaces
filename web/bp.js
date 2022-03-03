@@ -24,7 +24,17 @@ const annotateDuplicates = (arr) => {
     // add the postcode as discriminator
     for (const i in arr) {
         if (d.has(arr[i].name)) {
-            arr[i].disc = arr[i].place.postcode + " " + arr[i].place.boundary
+            const place = arr[i].place;
+            // TODO: change to really check, whether the below discriminates the results
+            if (place.boundary) {
+                if (place.neighbourhood) {
+                    arr[i].disc = place.neighbourhood + ", " + place.boundary;
+                } else {
+                    arr[i].disc = place.boundary;
+                }
+            } else {
+                arr[i].disc = place.postcode;
+            }
         } else {
             arr[i].disc = ''
         }
