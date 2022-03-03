@@ -109,6 +109,8 @@ In the following we look at different lookup latency based on:
 Essential basic tests show ~200µs without typos and ~12ms with early typos (if completed first time) (locally, on an 
 i5-4670S).
 
+Each of the following tests was thereby started with an empty cache.
+
 ### Without typos
 
 Autocompleting on "oranienburger straße":
