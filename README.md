@@ -13,7 +13,9 @@ REST-Service for autocompletion and geocoding of places and addresses in Berlin.
 berlinplaces is essentially me playing around with [Open Street Map](https://wiki.osmfoundation.org/wiki/Main_Page)
 data. The goal is (was), to imitate Google's [Places Autocomplete](https://developers.google.com/maps/documentation/javascript/places-autocomplete#introduction)
 (-API) without the strings attached. That is, provide an API that is free (beer and speech), has a low latency, has a 
-good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deployment: 
+good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deployment. 
+
+Thus here it is, berlinplaces is:
 
 - free: it's here and OSS
 - [latency](#latency): basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S)
