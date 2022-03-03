@@ -47,10 +47,10 @@ type prefix struct {
 	// (there may be more than minCompletionCount exact matches)
 	exact []*result
 
-	// completions (i.e. places to suggest for this prefix (only if not isMaxDepth)
+	// completions (i.e. places to suggest for this prefix (only if not at maxPrefixLength)
 	completions []*result
 
-	// places covered by this prefix (only if isMaxDepth)
+	// places covered by this prefix (only if at maxPrefixLength)
 	places []*place
 }
 
@@ -287,9 +287,11 @@ func (bp Places) levenshtein(places []*place, text string) []*result {
 		}
 	}
 
-	// sort the completions slice by Levenshtein-Distance in ascending order
+	// sort the completions slice by Levenshtein-Distance ascending and relevance descending
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].Distance < results[j].Distance
+		di := results[i].Distance
+		dj := results[j].Distance
+		return di < dj || (di == dj && results[i].Place.Relevance > results[j].Place.Relevance)
 	})
 
 	go func() {
