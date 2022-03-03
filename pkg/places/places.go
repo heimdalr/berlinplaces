@@ -6,9 +6,11 @@ import (
 	"github.com/agnivade/levenshtein"
 	"github.com/dgraph-io/ristretto"
 	"github.com/gocarina/gocsv"
+	"github.com/rs/zerolog/log"
 	"io"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"unicode"
 )
 
@@ -34,10 +36,8 @@ type place struct {
 	City          string `csv:"city" json:"city"`
 	Lat           string `csv:"lat" json:"lat"`
 	Lon           string `csv:"lon" json:"lon"`
-}
-
-func (p place) id() string {
-	return sanitizeString(p.Name)
+	Relevance     uint64 `json:"relevance"`
+	SimpleName    string `json:"simpleName"` // the sanitized name used for lookups
 }
 
 // prefix represents precomputed completions and places for a given prefix
@@ -77,17 +77,27 @@ type Places struct {
 
 func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
 
+	// basic init
+	places := Places{
+		maxPrefixLength:    maxPrefixLength,
+		minCompletionCount: minCompletionCount,
+		levMinimum:         levMinimum,
+	}
+
 	// unmarshal
-	var places []*place
-	if err := gocsv.Unmarshal(csv, &places); err != nil {
+	err := gocsv.Unmarshal(csv, &places.places)
+	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall CSV data: %w", err)
 	}
 
+	// compute simple names
+	places.computeSimpleNames()
+
 	// compute pm
-	pm := computePrefixMap(places, maxPrefixLength, minCompletionCount)
+	places.computePrefixMap()
 
 	// initialize cache
-	cache, err := ristretto.NewCache(&ristretto.Config{
+	places.cache, err = ristretto.NewCache(&ristretto.Config{
 		NumCounters: 1e6,     // number of keys to track frequency of (1M).
 		MaxCost:     1 << 30, // maximum cost of cache (1GB).
 		BufferItems: 64,      // number of keys per Get buffer.
@@ -96,50 +106,50 @@ func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum in
 		return nil, fmt.Errorf("failed to initialize cache: %w", err)
 	}
 
-	return &Places{
-		places:             places,
-		prefixMap:          pm,
-		cache:              cache,
-		maxPrefixLength:    maxPrefixLength,
-		minCompletionCount: minCompletionCount,
-		levMinimum:         levMinimum,
-	}, nil
+	return &places, nil
+
 }
 
 // sanitizeString to unicode letters, spaces and minus
 func sanitizeString(s string) string {
 	// only unicode letters, spaces and minus
 	s = strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) || r == 32 || r == 45 {
+		if unicode.IsLetter(r) {
 			return r
 		}
 		return -1
 	}, s)
-	// remove spaces and minus from head and tail
-	return strings.Trim(s, " -")
+	// remove spaces and minus from head and tail and lower case
+	return strings.ToLower(strings.Trim(s, " -"))
+}
+
+// computeSimpleNames computes the simple names.
+func (bp *Places) computeSimpleNames() {
+	for _, p := range bp.places {
+		p.SimpleName = sanitizeString(p.Name)
+	}
 }
 
 // computePrefixMap associates places with prefixes.
-func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount int) map[string]*prefix {
+func (bp *Places) computePrefixMap() {
 
 	pm := make(map[string]*prefix)
 
-	// sort allPlaces by name
-	sort.Slice(allPlaces,
+	// sort places by length and lex order
+	sort.Slice(bp.places,
 		func(i, j int) bool {
-			li := allPlaces[i].Name
-			lj := allPlaces[j].Name
-			return len(li) < len(lj) || (len(li) == len(lj) && allPlaces[i].Name < allPlaces[j].Name)
+			li := bp.places[i].SimpleName
+			lj := bp.places[j].SimpleName
+			return len(li) < len(lj) || (len(li) == len(lj) && li < li)
 		})
 
-	for d := 1; d <= maxPrefixLength; d++ {
-		for _, p := range allPlaces {
-			id := p.id()
-			runes := []rune(id)
+	for d := 1; d <= bp.maxPrefixLength; d++ {
+		for _, p := range bp.places {
+			runes := []rune(p.SimpleName)
 			runesLen := len(runes)
 			prefixLen := min(runesLen, d)
 			remainderLength := runesLen - prefixLen
-			prefixStr := strings.ToLower(string(runes[:prefixLen]))
+			prefixStr := string(runes[:prefixLen])
 
 			// as we are here we have something for this prefix, init a map entry (if necessary)
 			if _, ok := pm[prefixStr]; !ok {
@@ -159,10 +169,10 @@ func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount in
 			}
 
 			// if not at max maxPrefixLength
-			if d < maxPrefixLength {
+			if d < bp.maxPrefixLength {
 
 				// if completions are not yet full
-				if len(pm[prefixStr].completions) < minCompletionCount {
+				if len(pm[prefixStr].completions) < bp.minCompletionCount {
 					r := result{
 						Distance:   remainderLength,
 						Percentage: 0,
@@ -181,13 +191,13 @@ func computePrefixMap(allPlaces []*place, maxPrefixLength, minCompletionCount in
 		}
 	}
 
-	return pm
+	bp.prefixMap = pm
 }
 
 func (bp Places) Query(_ context.Context, input string) []*result {
 
 	// dissect the input
-	input = strings.ToLower(sanitizeString(input))
+	input = sanitizeString(input)
 	runes := []rune(input)
 	inputLength := len(runes)
 
@@ -267,11 +277,11 @@ func (bp Places) Query(_ context.Context, input string) []*result {
 
 func (bp Places) levenshtein(places []*place, text string) []*result {
 
-	// for each place compute the Levenshtein-Distance between its name and the given text
+	// for each place compute the Levenshtein-Distance between its simple name and the given text
 	results := make([]*result, len(places))
 	for i, p := range places {
 		results[i] = &result{
-			Distance:   levenshtein.ComputeDistance(text, p.Name),
+			Distance:   levenshtein.ComputeDistance(text, p.SimpleName),
 			Percentage: 0,
 			Place:      p,
 		}
@@ -282,12 +292,41 @@ func (bp Places) levenshtein(places []*place, text string) []*result {
 		return results[i].Distance < results[j].Distance
 	})
 
+	go func() {
+		bp.updateRelevance(results)
+	}()
+
 	// compute the number of completions to return
 	count := min(bp.minCompletionCount, len(results))
 
 	// return the top n completions with the smallest Levenshtein-Distance
 	topResults := results[:count]
 	return topResults
+}
+
+func (bp Places) updateRelevance(results []*result) {
+
+	// for each result
+	for _, r := range results {
+
+		// if the distance is 0, the input resulted in an exact match
+		if r.Distance == 0 {
+
+			// increase relevance (thread safe)
+			atomic.AddUint64(&r.Place.Relevance, 1)
+
+			log.Debug().
+				Str("id", r.Place.PlaceID).
+				Str("name", r.Place.Name).
+				Uint64("relevance", r.Place.Relevance).
+				Msg("increased relevance for place")
+
+		} else {
+
+			// results are ordered by distance wrt. text, thus break as soon as not 0
+			break
+		}
+	}
 }
 
 func min(a, b int) int {
