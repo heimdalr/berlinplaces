@@ -176,16 +176,15 @@ The correct "Oranienburger Straße" is suggested after typing "oanienburgers" an
 typing "oanienburgerst".
 
 In this case, there are no prepared completion for the prefix "oa" (and following). Thus, berlinplaces does Levenshtein
-on the complete set for this call and all subsequent prefixes.(see [this](https://github.com/heimdalr/berlinplaces/issues/1) 
-issue.)
+on the complete set for this call and all subsequent prefixes.
 
 Now, good news, berlinplaces caches the results of input completions for faulty inputs and inputs longer than the 
 configured `maxPrefixLength`. Thus running the same faulty input ("oanienburgerstraße") again, results in an average
-response length of 194µs.
+response-time of 194µs.
 
 ### Late typos
 
-Late typos are typos that occur outside / after the prefix lookup.  
+Late typos are typos that occur outside / after the prefix lookup.
 
 Autocompleting on "oranienurgerstarße" (note the missing "b" and the flipped "ar" vs. "ra"):
 
