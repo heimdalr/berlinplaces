@@ -172,21 +172,26 @@ Autocompleting on "oanienburgerstraße" (note the missing "r" in the beginning):
 
 Early typos ruin the lookup. The average response time over all 18 calls is ~12ms. 
 
-The correct "Oranienburger Straße" is suggested after typing "oanienburgers" and at the top of the suggestion list after
-typing "oanienburgerst".
+The correct "Oranienburger Straße" is suggested after typing "oanienburgers" and
+at the top of the suggestion list after typing "oanienburgerst".
 
-In this case, there are no prepared completion for the prefix "oa" (and following). Thus, berlinplaces does Levenshtein
-on the complete set for this call and all subsequent prefixes.
+In this case, there are no prepared completion for the prefix "oa" (and
+following). Thus, berlinplaces does Levenshtein on the complete set for this
+call and all subsequent prefixes.
 
-Now, good news, berlinplaces caches the results of input completions for faulty inputs and inputs longer than the 
-configured `maxPrefixLength`. Thus running the same faulty input ("oanienburgerstraße") again, results in an average
-response-time of 194µs.
+### Late typos
+
+Early typos ruin the lookup. However, berlinplaces caches the results of input
+completions for faulty inputs and inputs longer than the configured
+`maxPrefixLength`. Thus running the same faulty input ("oanienburgerstraße")
+again, results in an average response-time of 194µs.
 
 ### Late typos
 
 Late typos are typos that occur outside / after the prefix lookup.
 
-Autocompleting on "oranienurgerstarße" (note the missing "b" and the flipped "ar" vs. "ra"):
+Autocompleting on "oranienurgerstarße" (note the missing "b" and the flipped
+"ar" vs. "ra"):
 
 ~~~~
 [GIN] | 200 | 249.977µs | GET "/api/?text=o"
