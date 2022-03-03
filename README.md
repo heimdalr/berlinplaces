@@ -13,15 +13,68 @@ REST-Service for autocompletion and geocoding of places and addresses in Berlin.
 berlinplaces is essentially me playing around with [Open Street Map](https://wiki.osmfoundation.org/wiki/Main_Page)
 data. The goal is (was), to imitate Google's [Places Autocomplete](https://developers.google.com/maps/documentation/javascript/places-autocomplete#introduction)
 (-API) without the strings attached. That is, provide an API that is free (beer and speech), has a low latency, has a 
-good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deployment. 
-
-berlinplace: 
+good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deployment: 
 
 - free: it's here and OSS
-- latency: basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S)
-- hit rate: berlin places uses lookup tables for speed and Levenshtein for typos
+- [latency](#latency): basic tests show ~4ms without typos ~13ms with early typos (locally, on an i5-4670S)
+- hit rate: berlinplaces uses lookup tables for speed and Levenshtein for typos
 - slim and easy: 25MB Docker image (incl. REST-server, OSM-data, swagger-docs and example website) 
   
+## Getting Started
+
+Have [Go](https://go.dev/) >= 1.17 installed and run: 
+
+~~~~bash
+git clone git@github.com:heimdalr/berlinplaces.git
+cd berlinplaces
+go build -o berlinplaces .
+./berlinplaces 
+~~~~
+
+and surf to:
+
+- <http://localhost:8080/web> - demo website or
+- <http://localhost:8080/swagger> - the OpenAPI spec
+
+alternatively run (e.g.): 
+
+~~~~bash
+curl --request GET --url 'http://localhost:8080/api/?text=Oranienbur' | jq
+~~~~
+
+which will result in something like:
+
+~~~~json
+[
+  {
+    "distance": 10,
+    "percentage": 0,
+    "place": {
+      "placeID": "596345",
+      "parentPlaceID": "732833",
+      "osmID": "",
+      "class": "highway",
+      "type": "primary",
+      "name": "Oranienburger Straße",
+      "street": "",
+      "houseNumber": "",
+      "suburb": "",
+      "postcode": "13437",
+      "city": "Berlin",
+      "lat": "52.5979629",
+      "lon": "13.3324627"
+    }
+  },
+  {
+    "distance": 10,
+    "percentage": 0,
+    "place": {
+      "placeID": "691734",
+      "parentPlaceID": "129539",  
+  ...
+]
+~~~~
+
 
 ## Latency
 
