@@ -53,3 +53,7 @@
     color: rgba(0, 0, 0, 0.50);
     margin-bottom: 1ex;
 }
+
+#my_search2 {
+    display: none;
+}
