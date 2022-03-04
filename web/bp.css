@@ -54,6 +54,25 @@
     margin-bottom: 1ex;
 }
 
-#my_search2 {
+#simpleSpan {
     display: none;
+    position: relative;
+}
+
+#simpleInput {
+    /*display: none;*/
+    position: relative;
+    vertical-align: top;
+    background-color: transparent;
+    display: inline-block;
+}
+
+#simpleHint {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    border-color: transparent;
+    box-shadow: none;
+    opacity: 1;
+    background: none 0% 0% / auto repeat scroll padding-box padding-box rgb(255, 255, 255);
 }

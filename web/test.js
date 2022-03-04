@@ -17,8 +17,6 @@ let colors_suggestions = new Bloodhound({
     local: states
 });
 
-let selectedValue;
-
 const myTypeaheadOptions = {
     hint: true,
     highlight: true,
@@ -29,63 +27,68 @@ const myTypeaheadDatasets = {
     limit: 'Infinity',
 }
 
+let selectedValue;
 
-const inputHandler = function(e) {
+const simpleInputInputHandler = function(e) {
     // if we backspace into the selection, re-enable the typeahead
-    const newValue = $('#my_search2').val();
+    const newValue = simpleInput.val();
     if (newValue.length < selectedValue.length) {
-
-        // update the value of the typeahead box
-        $('#my_search').typeahead('val', newValue);
-
-        // hide the typeahead input and show and focus the simple input
-        $('#my_search2').css("display", "none");
-        $('#my_search').css("display", "block");
-        $('#my_search').focus();
-
-
+        switchToAutocomplete()
     } else {
         console.log(selectedValue + " vs " + newValue)
     }
 }
 
-const enterTracker = function (e) {
+const simpleInputKeypressHandler = function (e) {
     if(e.which === 13){
-        const newValue = $('#my_search').val();
-
-        // document.getElementById('result').innerHTML = newValue;
-        console.log("enter pressed")
+        const newValue = simpleInput.val();
+        console.log(newValue)
     }
 }
 
-const myTypeaheadDisable2 = function (e, datum) {
+const switchToSimple = function (e, datum) {
 
-    // safe the selected value
     selectedValue = datum;
 
     // display the selected value above the input
     // document.getElementById('result').innerHTML = datum;
 
-    // copy the value to our input
-    $('#my_search2').val(datum);
+    // copy the value to the simpleInput
+    simpleInput.val(selectedValue);
 
-    // hide the typeahead input and show and focus the simple input
-    $('#my_search').css("display", "none");
-    $('#my_search2').css("display", "block");
-    $('#my_search2').focus();
-
-    console.log(datum)
-
-
+    // hide acSpan, show the simpleSpan and focus the simpleInput
+    acSpan.css("display", "none");
+    simpleSpan.css("display", "inline-block");
+    simpleInput.focus();
 }
 
-$('#my_search').typeahead(myTypeaheadOptions, myTypeaheadDatasets)
-$('#my_search').on("typeahead:selected", myTypeaheadDisable2);
+const switchToAutocomplete = function (e, datum) {
 
-$('#my_search2').on('input', inputHandler);
-$('#my_search2').on('keypress', enterTracker);
+    const simpleValue = simpleInput.val()
 
+    // copy the value to the acInput
+    acInput.typeahead('val', simpleValue);
+
+    // hide simpleSpan, show the acSpan and focus the acInput
+    simpleSpan.css("display", "none");
+    acSpan.css("display", "inline-block");
+    acInput.focus();
+}
+
+
+// initialize the auto complete input (acInput) -- visible
+const acInput = $('#acInput')
+acInput.typeahead(myTypeaheadOptions, myTypeaheadDatasets)
+acInput.on("typeahead:selected", switchToSimple);
+const acSpan = $('#input span:first-child')
+
+// initialize the simple input (simpleInput) -- hidden
+const simpleInput = $('#simpleInput')
+const simpleSpan = $('#simpleSpan')
+simpleInput.on('input', simpleInputInputHandler);
+simpleInput.on('keypress', simpleInputKeypressHandler);
+
+// focus the acInput as document is ready
 $(document).ready(function(){
-    document.getElementById('my_search').focus();
-
+    acInput.focus();
 })
