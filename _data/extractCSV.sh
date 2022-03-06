@@ -2,7 +2,13 @@
 
 CONTAINER_NAME=nominatim
 NOMINATIM_DATA=${PWD}/.nominatim-data
-CSV_FILE_DISTRICTS=${PWD}/../berlin.csv
+CSV_FILE_DISTRICTS=${PWD}/../districts.csv
+CSV_FILE_STREETS=${PWD}/../streets.csv
+CSV_FILE_LOCATIONS=${PWD}/../locations.csv
+CSV_FILE_HOUSENUMBERS=${PWD}/../housenumbers.csv
+
+
+
 SQL_FILE=${PWD}/exportCSV.sql
 CONTAINER_CHECK_URL=http://localhost:8081/search.php?q=Oranienburger
 
@@ -36,7 +42,10 @@ export PGPASSWORD="$(docker exec -it ${CONTAINER_NAME} /bin/bash -c 'echo -n $NO
 #psql -h localhost -U nominatim -d nominatim -a -f ${SQL_FILE}
 
 # dump the (tmp) table to a CSV file
-psql -h localhost -U nominatim -d nominatim -c "\COPY districts TO ${CSV_FILE_DISTRICTS} CSV HEADER;"
+psql -h localhost -U nominatim -d nominatim -c "\COPY districts_dump TO ${CSV_FILE_DISTRICTS} CSV HEADER;"
+psql -h localhost -U nominatim -d nominatim -c "\COPY streets_dump TO ${CSV_FILE_STREETS} CSV HEADER;"
+psql -h localhost -U nominatim -d nominatim -c "\COPY locations_dump TO ${CSV_FILE_LOCATIONS} CSV HEADER;"
+psql -h localhost -U nominatim -d nominatim -c "\COPY housenumbers_dump TO ${CSV_FILE_HOUSENUMBERS} CSV HEADER;"
 
 # try to stop the container
 #docker stop nominatim || true

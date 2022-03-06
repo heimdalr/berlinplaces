@@ -1,12 +1,13 @@
+/*
+ * districts
+ */
 drop table if exists districts;
-
 create table districts (
 	postcode varchar primary key,
 	district varchar not null,
 	geometry geometry(geometry,4326) not null,
 	centroid geometry(geometry,4326) not null
 );
-
 with cte_district (postcode, district) as (
 	values
 	('10115', 'Mitte'),
@@ -209,65 +210,15 @@ insert into districts (postcode, district, geometry, centroid)
 	left join placex p on p.postcode = cte.postcode 
 	where p.class = 'boundary' and type = 'postal_code';
 	 
-
-
 /*
- * locations 
- */
-drop table if exists locations;
-
-create table locations (
-   place_id VARCHAR not null,
-   class VARCHAR not null,
-   type VARCHAR not null,
-   name VARCHAR not null,
-   street VARCHAR not null,
-   housenumber VARCHAR,
-   postcode VARCHAR,
-   lat float,
-   lon float,
-   constraint fk_postcode
-   		foreign key(postcode) 
-   		 references districts(postcode)
-);
-
-insert into locations 
-	(place_id, class, type, name, street, housenumber, postcode, lat, lon)
-	select
-		p.place_id,
-	    p.class,
-	    p.type,
-	    p.name -> 'name' as name,
-	    p.address -> 'street' as street,
-	    p.housenumber as housenumber,
-	    p.postcode as postcode,
-	    ST_Y(p.centroid) as lat,
-	    ST_X(p.centroid) as lon
-	from
-	    placex p
-	where
-	        p.class in ('tourism', 'amenity')
-	    and p.type is not null
-	    and p.name is not null
-	    and p.address is not null
-	    and p.postcode is not null
-	    and (p.class != 'tourism' or p.type in ('hotel', 'museum', 'hostel'))
-	    and (p.class != 'amenity' or p.type in ('nightclub', 'pub', 'restaurant', 'house', 'cafe', 'biergarten', 'bar'))
-	    and p.postcode in (select postcode from districts)
-	    and p.name->'name' != ''
-	    and p.address -> 'street' != '';
-
-/*
- * street_names
+ * street names
  */
 drop table if exists street_names;
-
 create table street_names (
    id SERIAL primary key,
    name VARCHAR not null,
    unique (name)
 );
-
 insert into	street_names 
 	(name)
     select
@@ -280,7 +231,6 @@ insert into	street_names
 		and p.name is not null
 		and p.name->'name' != ''
 ;
-
 
 
 /*
@@ -380,7 +330,9 @@ CREATE TABLE streets (
 	
 );
 
--- compute streets 
+/*
+ * streets
+ */
 do $$ 
 declare
     arow record;
@@ -408,11 +360,7 @@ declare
 $$;
 
 
- /*
- * housenumbers 
- */
-
--- match a given geometry to the closest street with the given name
+-- function to match a given geometry to the closest street with the given name
 drop function if exists matchStreet;
 CREATE OR REPLACE function matchStreet(varchar, geometry) RETURNS integer as
 $$
@@ -430,8 +378,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+/*
+ * housenumbers 
+ */
 drop table if exists housenumbers;
-
 create table housenumbers (
    place_id integer,
    street_id integer,
@@ -442,8 +392,6 @@ create table housenumbers (
    constraint fk_street foreign key(street_id) references streets(id)
    --unique(street_id, housenumber)
 );
-
-
 insert into	housenumbers 
 	(place_id, street_id, housenumber, postcode, centroid)
 	select
@@ -466,11 +414,10 @@ insert into	housenumbers
 
 
 /*
- * locations2 
+ * locations
  */
-drop table if exists locations2;
-
-create table locations2 (
+drop table if exists locations;
+create table locations (
    place_id VARCHAR not null,
    street_id integer,
    class VARCHAR not null,
@@ -482,8 +429,7 @@ create table locations2 (
    constraint fk_districts foreign key(postcode) references districts(postcode),
    constraint fk_street foreign key(street_id) references streets(id)
 );
-
-insert into locations2 
+insert into locations 
 	(place_id, street_id, class, type, name, housenumber, postcode, centroid)
 	select
 		p.place_id,
@@ -512,16 +458,14 @@ insert into locations2
 /*
  * tables ready for CSV export
  */ 
-drop table if exists housenumbers_dump;
-create table housenumbers_dump as (
+	   
+drop table if exists districts_dump;
+create table districts_dump as (
 	select 
-		street_id, 
-		housenumber, 
 		postcode,
-		ST_Y(centroid) as lat, 
-		ST_X(centroid) as lon
-	from housenumbers
-);
+	 	district
+	from districts
+);	   
 
 drop table if exists streets_dump;
 create table streets_dump as (
@@ -535,14 +479,27 @@ create table streets_dump as (
 	from streets
 );
 
+drop table if exists housenumbers_dump;
+create table housenumbers_dump as (
+	select 
+		street_id, 
+		housenumber, 
+		postcode,
+		ST_Y(centroid) as lat, 
+		ST_X(centroid) as lon
+	from housenumbers
+);
+
 drop table if exists locations_dump;
 create table locations_dump as (
 	select 
-	 	id,
-	 	name, 
-	 	cluster_id,
+		type,
+	 	name,
+		street_id,
+		housenumber,
 	 	postcode,
 	 	ST_Y(centroid) as lat, 
   	 	ST_X(centroid) as lon
 	from locations
+	where street_id is not null
 );
