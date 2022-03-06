@@ -264,7 +264,8 @@ drop table if exists streets;
 
 create table streets (
    id SERIAL primary key,
-   name VARCHAR not null
+   name VARCHAR not null,
+   unique (name)
 );
 
 insert into	streets 
@@ -316,3 +317,111 @@ insert into	housenumbers
 	        and p.postcode in (select plz from bezirke)
 			and p.housenumber ~ '^[0-9]+[a-z]*$'
 ;
+
+/*
+ * procedure for finding connected linestring (i.e. idententify different streets with the same name)
+ * 
+ * see: https://gis.stackexchange.com/a/94243
+ */
+drop procedure computeStreetLines;
+CREATE OR REPLACE procedure computeStreetLines(integer) AS
+$$
+DECLARE
+this_id bigint;
+this_geom geometry;
+cluster_id_match integer;
+
+id_a bigint;
+id_b bigint;
+
+begin
+
+-- create a table of lines for the given street id
+drop table if exists lines;
+create table lines as ( 
+select
+	p.place_id as id,
+	p.geometry as geom 
+from
+	streets s
+left join placex p on p.name -> 'name' = s.name 
+where
+	(p.class = 'highway'
+		and p.type in ('cycleway', 'footway', 'living_street', 'motorway_link', 'pedestrian', 'primary', 'primary_link', 'residential', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'trunk', 'trunk_link', 'unclassified')
+			and p.name is not null
+			and p.name->'name' != '')
+	and s.id = $1
+);
+	
+-- create clusters on lines
+DROP TABLE IF EXISTS clusters;
+CREATE TABLE clusters (cluster_id serial, ids bigint[], geom geometry);
+CREATE INDEX ON clusters USING GIST(geom);
+
+-- Iterate through linestrings, assigning each to a cluster (if there is an intersection)
+-- or creating a new cluster (if there is not)
+FOR this_id, this_geom IN SELECT id, geom FROM lines LOOP
+  -- Look for an intersecting cluster.  (There may be more than one.)
+  SELECT cluster_id FROM clusters WHERE ST_Intersects(this_geom, clusters.geom)
+     LIMIT 1 INTO cluster_id_match;
+
+  IF cluster_id_match IS NULL THEN
+     -- Create a new cluster
+     INSERT INTO clusters (ids, geom) VALUES (ARRAY[this_id], this_geom);
+  ELSE
+     -- Append line to existing cluster
+     UPDATE clusters SET geom = ST_Union(this_geom, geom),
+                          ids = array_prepend(this_id, ids)
+      WHERE clusters.cluster_id = cluster_id_match;
+  END IF;
+END LOOP;
+
+
+-- Iterate through the clusters, combining clusters that intersect each other
+LOOP
+    SELECT a.cluster_id, b.cluster_id FROM clusters a, clusters b 
+     WHERE ST_Intersects(a.geom, b.geom)
+       AND a.cluster_id < b.cluster_id
+      INTO id_a, id_b;
+
+    EXIT WHEN id_a IS NULL;
+    -- Merge cluster A into cluster B
+    UPDATE clusters a SET geom = ST_Union(a.geom, b.geom), ids = array_cat(a.ids, b.ids)
+      FROM clusters b
+     WHERE a.cluster_id = id_a AND b.cluster_id = id_b;
+
+    -- Remove cluster B
+    DELETE FROM clusters WHERE cluster_id = id_b;
+END LOOP;
+END;
+$$ language plpgsql;
+
+DROP TABLE IF EXISTS street_lines;
+CREATE TABLE street_lines (
+	id SERIAL primary key,
+	name varchar,
+	cluster_id integer, 
+	place_ids bigint[], 
+	geometry geometry,
+	centroid geometry
+);
+
+-- compute street lines
+do $$ 
+declare
+    arow record;
+  begin
+    for arow in
+      select * from streets
+    loop
+      RAISE NOTICE 'Calling cs_create_job(%)', arow.id;
+	  call computeStreetLines(arow.id);
+ 	  insert into street_lines (name, cluster_id, place_ids, geometry, centroid)
+		select arow.name, c.cluster_id, c.ids, c.geom, ST_ClosestPoint(c.geom, ST_Centroid(c.geom)) 
+		from clusters c;
+		commit;
+    end loop;
+  end;
+$$;
+
+
