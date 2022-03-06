@@ -258,17 +258,17 @@ insert into locations
 	    and p.address -> 'street' != '';
 
 /*
- * streets
+ * street_names
  */
-drop table if exists streets;
+drop table if exists street_names;
 
-create table streets (
+create table street_names (
    id SERIAL primary key,
    name VARCHAR not null,
    unique (name)
 );
 
-insert into	streets 
+insert into	street_names 
 	(name)
     select
 		distinct p.name -> 'name' as name
@@ -281,42 +281,7 @@ insert into	streets
 		and p.name->'name' != ''
 ;
 
-/*
- * housenumbers 
- */
-drop table if exists housenumbers;
 
-create table housenumbers (
-   place_id integer,
-   street_id integer,
-   housenumber VARCHAR,
-   plz VARCHAR,
-   lat float,
-   lon float,
-   constraint fk_bezirke foreign key(plz) references bezirke(plz),
-   constraint fk_street foreign key(street_id) references streets(id),
-   unique(street_id, housenumber, plz)
-);
-
-insert into	housenumbers 
-	(place_id, street_id, housenumber, plz, lat, lon)
-	select
-		distinct on (s.id, housenumber, plz)
-		p.place_id,
-		s.id,
-	    p.housenumber,
-	    p.postcode as plz,
-	    ST_Y(p.centroid) as lat,
-	    ST_X(p.centroid) as lon
-	from
-	    placex p
-	join streets s on s.name = p.address -> 'street' 
-	where
-	        p.postcode is not null 
-	        and p.housenumber is not null
-	        and p.postcode in (select plz from bezirke)
-			and p.housenumber ~ '^[0-9]+[a-z]*$'
-;
 
 /*
  * procedure for finding connected linestring (i.e. idententify different streets with the same name)
@@ -343,7 +308,7 @@ select
 	p.place_id as id,
 	p.geometry as geom 
 from
-	streets s
+	street_names s
 left join placex p on p.name -> 'name' = s.name 
 where
 	(p.class = 'highway'
@@ -362,7 +327,10 @@ CREATE INDEX ON clusters USING GIST(geom);
 -- or creating a new cluster (if there is not)
 FOR this_id, this_geom IN SELECT id, geom FROM lines LOOP
   -- Look for an intersecting cluster.  (There may be more than one.)
-  SELECT cluster_id FROM clusters WHERE ST_Intersects(this_geom, clusters.geom)
+  --SELECT cluster_id FROM clusters WHERE ST_Intersects(this_geom, clusters.geom)
+  -- ST_Intersects fails, with bad data (e.g. Admiralstraße). Allow geometry to be 200m appart.
+  -- there is likely no two different streets with the same name less than 500m appart.	
+  SELECT cluster_id FROM clusters WHERE ST_DWithin(this_geom, clusters.geom, 500, false)
      LIMIT 1 INTO cluster_id_match;
 
   IF cluster_id_match IS NULL THEN
@@ -396,32 +364,185 @@ END LOOP;
 END;
 $$ language plpgsql;
 
-DROP TABLE IF EXISTS street_lines;
-CREATE TABLE street_lines (
+DROP TABLE IF EXISTS streets;
+CREATE TABLE streets (
 	id SERIAL primary key,
 	name varchar,
 	cluster_id integer, 
 	place_ids bigint[], 
 	geometry geometry,
-	centroid geometry
+	centroid geometry,
+	postcode varchar,
+	--unique(name, postcode),
+	constraint fk_postcode
+   		foreign key(postcode) 
+   		 references districts(postcode)
+	
 );
 
--- compute street lines
+-- compute streets 
 do $$ 
 declare
     arow record;
   begin
     for arow in
-      select * from streets
+      select * from street_names
+      --select * from street_names where name = 'Ahornallee'
+	  --select * from street_names limit 100
     loop
-      RAISE NOTICE 'Calling cs_create_job(%)', arow.id;
+      RAISE NOTICE 'Calling computeStreetLines(%)', arow.id;
 	  call computeStreetLines(arow.id);
- 	  insert into street_lines (name, cluster_id, place_ids, geometry, centroid)
-		select arow.name, c.cluster_id, c.ids, c.geom, ST_ClosestPoint(c.geom, ST_Centroid(c.geom)) 
-		from clusters c;
+ 	  insert into streets (name, cluster_id, place_ids, geometry, centroid, postcode)
+		select * from (
+	 	  	select sl.*, d.postcode 
+	 	  	from (		
+	 	  		select arow.name, c.cluster_id, c.ids, c.geom, ST_ClosestPoint(c.geom, ST_Centroid(c.geom)) as centroid 
+				from clusters c
+			) as sl
+			left join districts d on ST_Contains(d.geometry, sl.centroid)
+		) as psl
+		where psl.postcode is not null;
 		commit;
     end loop;
   end;
 $$;
 
 
+ /*
+ * housenumbers 
+ */
+
+-- match a given geometry to the closest street with the given name
+drop function if exists matchStreet;
+CREATE OR REPLACE function matchStreet(varchar, geometry) RETURNS integer as
+$$
+DECLARE street_id integer;
+begin
+	select dp.id into street_id from (
+		select * from (
+			select *, ST_Distance(s.geometry, $2) as distance
+			from streets s 
+			where s.name = $1
+		) as d order by distance limit 1
+	) as dp;
+	RETURN street_id;
+END;
+$$ LANGUAGE plpgsql;
+
+
+drop table if exists housenumbers;
+
+create table housenumbers (
+   place_id integer,
+   street_id integer,
+   housenumber VARCHAR,
+   postcode VARCHAR,
+   centroid geometry,
+   constraint fk_districts foreign key(postcode) references districts(postcode),
+   constraint fk_street foreign key(street_id) references streets(id)
+   --unique(street_id, housenumber)
+);
+
+
+insert into	housenumbers 
+	(place_id, street_id, housenumber, postcode, centroid)
+	select
+		p.place_id,
+        matchStreet(p.address -> 'street', p.centroid) as street_id,
+		p.housenumber,
+	    p.postcode,
+	    p.centroid
+	from
+	    placex p
+	where
+	        p.postcode is not null 
+	        and p.address is not null 
+	        and p.address -> 'street' != ''
+	        and p.housenumber is not null
+	        and p.postcode in (select plz from bezirke)
+			and p.housenumber ~ '^[0-9]+[a-z]*$'
+	--limit 10000
+;
+
+
+/*
+ * locations2 
+ */
+drop table if exists locations2;
+
+create table locations2 (
+   place_id VARCHAR not null,
+   street_id integer,
+   class VARCHAR not null,
+   type VARCHAR not null,
+   name VARCHAR not null,
+   housenumber VARCHAR,
+   postcode VARCHAR,
+   centroid geometry,
+   constraint fk_districts foreign key(postcode) references districts(postcode),
+   constraint fk_street foreign key(street_id) references streets(id)
+);
+
+insert into locations2 
+	(place_id, street_id, class, type, name, housenumber, postcode, centroid)
+	select
+		p.place_id,
+		matchStreet(p.address -> 'street', p.centroid) as street_id,
+	    p.class,
+	    p.type,
+	    p.name -> 'name' as name,
+	    p.housenumber as housenumber,
+	    p.postcode as postcode,
+	    p.centroid
+	from
+	    placex p
+	where
+	        p.class in ('tourism', 'amenity')
+	    and p.type is not null
+	    and p.name is not null
+	    and p.address is not null
+	    and p.postcode is not null
+	    and (p.class != 'tourism' or p.type in ('hotel', 'museum', 'hostel'))
+	    and (p.class != 'amenity' or p.type in ('nightclub', 'pub', 'restaurant', 'house', 'cafe', 'biergarten', 'bar'))
+	    and p.postcode in (select postcode from districts)
+	    and p.name->'name' != ''
+	    and p.address -> 'street' != '';
+
+
+/*
+ * tables ready for CSV export
+ */ 
+drop table if exists housenumbers_dump;
+create table housenumbers_dump as (
+	select 
+		street_id, 
+		housenumber, 
+		postcode,
+		ST_Y(centroid) as lat, 
+		ST_X(centroid) as lon
+	from housenumbers
+);
+
+drop table if exists streets_dump;
+create table streets_dump as (
+	select 
+	 	id,
+	 	name, 
+	 	cluster_id,
+	 	postcode,
+	 	ST_Y(centroid) as lat, 
+  	 	ST_X(centroid) as lon
+	from streets
+);
+
+drop table if exists locations_dump;
+create table locations_dump as (
+	select 
+	 	id,
+	 	name, 
+	 	cluster_id,
+	 	postcode,
+	 	ST_Y(centroid) as lat, 
+  	 	ST_X(centroid) as lon
+	from locations
+);

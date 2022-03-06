@@ -2,7 +2,7 @@
 
 CONTAINER_NAME=nominatim
 NOMINATIM_DATA=${PWD}/.nominatim-data
-CSV_FILE=${PWD}/../berlin.csv
+CSV_FILE_DISTRICTS=${PWD}/../berlin.csv
 SQL_FILE=${PWD}/exportCSV.sql
 CONTAINER_CHECK_URL=http://localhost:8081/search.php?q=Oranienburger
 
@@ -33,10 +33,10 @@ done
 export PGPASSWORD="$(docker exec -it ${CONTAINER_NAME} /bin/bash -c 'echo -n $NOMINATIM_PASSWORD')"
 
 # create a (tmp) table with desired data
-psql -h localhost -U nominatim -d nominatim -a -f ${SQL_FILE}
+#psql -h localhost -U nominatim -d nominatim -a -f ${SQL_FILE}
 
 # dump the (tmp) table to a CSV file
-psql -h localhost -U nominatim -d nominatim -c "\COPY dump TO ${CSV_FILE} CSV HEADER;"
+psql -h localhost -U nominatim -d nominatim -c "\COPY districts TO ${CSV_FILE_DISTRICTS} CSV HEADER;"
 
 # try to stop the container
 #docker stop nominatim || true
