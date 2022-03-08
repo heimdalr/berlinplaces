@@ -59,7 +59,22 @@ stop_image:
 	docker stop berlinplaces 2>/dev/null || true
 	docker rm berlinplaces 2>/dev/null || true
 
+start_nominatim:
+	docker run --rm -d --shm-size=8g \
+        -e PBF_URL=https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf \
+        -e REPLICATION_URL=https://download.geofabrik.de/europe/germany/berlin-updates/ \
+        -e IMPORT_WIKIPEDIA=false \
+        -e FREEZE=true \
+        -v _data/.nominatim-data:/var/lib/postgresql/12/main \
+        -p 8081:8080 \
+        -p 5432:5432 \
+        --name nominatim \
+        mediagis/nominatim:4.0
+
+stop_nominatim:
+	docker stop nominatim 2>/dev/null || true
+
 clean:
 	rm -f berlinplaces c.out
 
-.PHONY: all fmt test lint coverage run_berlinplaces build_image run_image stop_image clean
+.PHONY: all fmt test lint coverage run_berlinplaces build_image run_image stop_image start_nominatim stop_nominatim clean
