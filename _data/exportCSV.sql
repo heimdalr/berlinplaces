@@ -339,9 +339,9 @@ declare
     arow record;
   begin
     for arow in
-      --select * from street_names
+      select * from street_names
       --select * from street_names where name = 'Ahornallee'
-	  select * from street_names limit 100
+	  --select * from street_names limit 100
     loop
       RAISE NOTICE 'Calling computeStreetLines(%)', arow.id;
 	  call computeStreetLines(arow.id);
