@@ -21,21 +21,15 @@ type district struct {
 }
 
 type street struct {
-	ID       int     `csv:"id"`
-	Name     string  `csv:"name"`
-	Cluster  string  `csv:"cluster"`
-	Postcode string  `csv:"postcode"`
-	Lat      float64 `csv:"lat"`
-	Lon      float64 `csv:"lat"`
-	Length   int32   `csv:"length"`
-}
-
-type housenumber struct {
-	StreetID    int     `csv:"street_id"`
-	Housenumber string  `csv:"housenumber"`
-	Postcode    string  `csv:"postcode"`
-	Lat         float64 `csv:"lat"`
-	Lon         float64 `csv:"lat"`
+	ID         int     `csv:"id"`
+	Name       string  `csv:"name"`
+	Cluster    string  `csv:"cluster"`
+	Postcode   string  `csv:"postcode"`
+	Lat        float64 `csv:"lat"`
+	Lon        float64 `csv:"lat"`
+	Length     int32   `csv:"length"`
+	Relevance  uint64
+	SimpleName string
 }
 
 type location struct {
@@ -46,8 +40,17 @@ type location struct {
 	Postcode    string  `csv:"postcode"`
 	Lat         float64 `csv:"lat"`
 	Lon         float64 `csv:"lat"`
+	Relevance   uint64
+	SimpleName  string
 }
 
+type housenumber struct {
+	StreetID    int     `csv:"street_id"`
+	Housenumber string  `csv:"housenumber"`
+	Postcode    string  `csv:"postcode"`
+	Lat         float64 `csv:"lat"`
+	Lon         float64 `csv:"lat"`
+}
 type result struct {
 	Distance   int    `json:"distance"`
 	Percentage int    `json:"percentage"`
@@ -102,6 +105,18 @@ type Places struct {
 	// a list of all places
 	places []*place
 
+	// a list of all districts
+	districts []*district
+
+	// a list of all streets
+	streets []*street
+
+	// a list of all streets
+	locations []*location
+
+	// a list of all housenumbers
+	housenumbers []*housenumber
+
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
 
@@ -122,7 +137,7 @@ type Metrics struct {
 	AvgLookupTime time.Duration
 }
 
-func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
+func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers, csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
 
 	// basic init
 	places := Places{
@@ -132,13 +147,35 @@ func NewPlaces(csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum in
 	}
 
 	// unmarshal
-	err := gocsv.Unmarshal(csv, &places.places)
+	err := gocsv.Unmarshal(csvDistricts, &places.districts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall districts CSV data: %w", err)
+	}
+
+	err = gocsv.Unmarshal(csvStreets, &places.streets)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall streets CSV data: %w", err)
+	}
+
+	err = gocsv.Unmarshal(csvLocations, &places.locations)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall locations CSV data: %w", err)
+	}
+
+	err = gocsv.Unmarshal(csvHousenumbers, &places.housenumbers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall housenumbers CSV data: %w", err)
+	}
+
+	err = gocsv.Unmarshal(csv, &places.places)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall CSV data: %w", err)
 	}
 
 	// compute simple names
 	places.computeSimpleNames()
+	places.computeSimpleStreetNames()
+	places.computeSimpleLocationNames()
 
 	// compute pm
 	places.computePrefixMap()
@@ -174,6 +211,20 @@ func sanitizeString(s string) string {
 func (bp *Places) computeSimpleNames() {
 	for _, p := range bp.places {
 		p.SimpleName = sanitizeString(p.Name)
+	}
+}
+
+// computeSimpleStreetNames computes simple names for streets.
+func (bp *Places) computeSimpleStreetNames() {
+	for _, l := range bp.locations {
+		l.SimpleName = sanitizeString(l.Name)
+	}
+}
+
+// computeSimpleLocationNames computes simple names for locations.
+func (bp *Places) computeSimpleLocationNames() {
+	for _, l := range bp.locations {
+		l.SimpleName = sanitizeString(l.Name)
 	}
 }
 
