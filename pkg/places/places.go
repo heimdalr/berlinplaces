@@ -15,6 +15,39 @@ import (
 	"unicode"
 )
 
+type district struct {
+	Postcode string `csv:"postcode"`
+	District string `csv:"district"`
+}
+
+type street struct {
+	ID       int     `csv:"id"`
+	Name     string  `csv:"name"`
+	Cluster  string  `csv:"cluster"`
+	Postcode string  `csv:"postcode"`
+	Lat      float64 `csv:"lat"`
+	Lon      float64 `csv:"lat"`
+	Length   int32   `csv:"length"`
+}
+
+type housenumber struct {
+	StreetID    int     `csv:"street_id"`
+	Housenumber string  `csv:"housenumber"`
+	Postcode    string  `csv:"postcode"`
+	Lat         float64 `csv:"lat"`
+	Lon         float64 `csv:"lat"`
+}
+
+type location struct {
+	Type        string  `csv:"type"`
+	Name        string  `csv:"name"`
+	StreetID    int     `csv:"street_id"`
+	Housenumber string  `csv:"housenumber"`
+	Postcode    string  `csv:"postcode"`
+	Lat         float64 `csv:"lat"`
+	Lon         float64 `csv:"lat"`
+}
+
 type result struct {
 	Distance   int    `json:"distance"`
 	Percentage int    `json:"percentage"`
@@ -36,7 +69,7 @@ type place struct {
 	Postcode      string  `csv:"postcode" json:"postcode"`
 	City          string  `csv:"city" json:"city"`
 	Lat           float64 `csv:"lat" json:"lat"`
-	Lon           float64 `csv:"lon" json:"lon"`
+	Lon           float64 `csv:"lat" json:"lat"`
 	Relevance     uint64  `json:"relevance"`
 	SimpleName    string  `json:"simpleName"` // the sanitized name used for lookups
 }
