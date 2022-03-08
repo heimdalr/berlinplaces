@@ -323,6 +323,7 @@ CREATE TABLE streets (
 	geometry geometry,
 	centroid geometry,
 	postcode varchar,
+	length integer,
 	--unique(name, postcode),
 	constraint fk_postcode
    		foreign key(postcode) 
@@ -338,17 +339,17 @@ declare
     arow record;
   begin
     for arow in
-      select * from street_names
+      --select * from street_names
       --select * from street_names where name = 'Ahornallee'
-	  --select * from street_names limit 100
+	  select * from street_names limit 100
     loop
       RAISE NOTICE 'Calling computeStreetLines(%)', arow.id;
 	  call computeStreetLines(arow.id);
- 	  insert into streets (name, cluster_id, place_ids, geometry, centroid, postcode)
+ 	  insert into streets (name, cluster_id, place_ids, geometry, centroid, length, postcode)
 		select * from (
 	 	  	select sl.*, d.postcode 
 	 	  	from (		
-	 	  		select arow.name, c.cluster_id, c.ids, c.geom, ST_ClosestPoint(c.geom, ST_Centroid(c.geom)) as centroid 
+	 	  		select arow.name, c.cluster_id, c.ids, c.geom, ST_ClosestPoint(c.geom, ST_Centroid(c.geom)) as centroid, floor(ST_Length(c.geom::geography))
 				from clusters c
 			) as sl
 			left join districts d on ST_Contains(d.geometry, sl.centroid)
