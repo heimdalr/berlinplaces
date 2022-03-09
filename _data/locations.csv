@@ -1,4 +1,4 @@
-type,name,street_id,housenumber,postcode,lat,lon
+type,name,street_id,house_number,postcode,lat,lon
 restaurant,Strandlust,9506,3a,12527,52.3762307,13.657224
 cafe,coffee point,8310,7,10969,52.5043808,13.3906826
 cafe,La Boom,199,146,12629,52.5467225,13.5926139

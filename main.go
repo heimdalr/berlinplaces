@@ -221,7 +221,7 @@ func initPlaces() (*places.Places, error) {
 		Int("levMinimum", levMinimum).
 		Int("streetCount", berlinPlaces.Metrics().StreetCount).
 		Int("locationCount", berlinPlaces.Metrics().LocationCount).
-		Int("housenumberCount", berlinPlaces.Metrics().HousenumberCount).
+		Int("housenumberCount", berlinPlaces.Metrics().HouseNumberCount).
 		Int("prefixCount", berlinPlaces.Metrics().PrefixCount).
 		Msg("initialized places")
 

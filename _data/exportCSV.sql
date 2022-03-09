@@ -485,7 +485,7 @@ drop table if exists housenumbers_dump;
 create table housenumbers_dump as (
 	select 
 		street_id, 
-		housenumber, 
+		housenumber as house_number,
 		postcode,
 		ST_Y(centroid) as lat, 
 		ST_X(centroid) as lon
@@ -498,7 +498,7 @@ create table locations_dump as (
 		type,
 	 	name,
 		street_id,
-		housenumber,
+		housenumber as house_number,
 	 	postcode,
 	 	ST_Y(centroid) as lat, 
   	 	ST_X(centroid) as lon

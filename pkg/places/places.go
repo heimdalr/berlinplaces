@@ -2,6 +2,7 @@ package places
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/agnivade/levenshtein"
 	"github.com/dgraph-io/ristretto"
@@ -34,35 +35,133 @@ type location struct {
 	Type        string  `csv:"type"`
 	Name        string  `csv:"name"`
 	StreetID    int     `csv:"street_id"`
-	Housenumber string  `csv:"housenumber"`
+	HouseNumber string  `csv:"house_number"`
 	Postcode    string  `csv:"postcode"`
 	Lat         float64 `csv:"lat"`
 	Lon         float64 `csv:"lon"`
 }
 
-type housenumber struct {
+type houseNumber struct {
 	StreetID    int     `csv:"street_id"`
-	Housenumber string  `csv:"housenumber"`
+	HouseNumber string  `csv:"house_number"`
 	Postcode    string  `csv:"postcode"`
 	Lat         float64 `csv:"lat"`
 	Lon         float64 `csv:"lon"`
+}
+
+type PlaceClass int
+
+const (
+	streetClass = iota
+	locationClass
+	houseNumberClass
+)
+
+func (pc PlaceClass) String() string {
+	return [...]string{"street", "location", "houseNumber"}[pc]
+}
+
+func (pc *PlaceClass) MarshalJSON() ([]byte, error) {
+	return json.Marshal(pc.String())
 }
 
 type place struct {
-	ID           int    `json:"placeID"`
-	Type         string `json:"type"`
-	Name         string `json:"name"`
-	Cluster      string
-	Street       *place    // in case of a location or a housenumber, this links (up) to the street
-	Housenumber  string    `json:"housenumber,omitempty"`
-	District     *district `json:"district"` // this links to the postcode and district
-	Lat          float64   `json:"lat"`
-	Lon          float64   `json:"lon"`
+	ID           int
+	Class        PlaceClass
+	Type         string
+	Name         string
+	cluster      string
+	Street       *place // in case of a location or a house number, this links (up) to the street
+	HouseNumber  string
+	District     *district // this links to the postcode and district
+	Lat          float64
+	Lon          float64
 	Length       int32
-	Relevance    uint64 `json:"relevance"`
+	Relevance    uint64
 	simpleName   string
-	housenumbers []*place // in case of a street, this links (down) to associated housenumbers
+	houseNumbers []*place // in case of a street, this links (down) to associated house numbers
 	locations    []*place // in case of a street, this links (down) to associated locations
+}
+
+func (p *place) MarshalJSON() ([]byte, error) {
+	if p.Class == streetClass {
+		return json.Marshal(&struct {
+			ID        int        `json:"id"`
+			Class     PlaceClass `json:"class"`
+			Name      string     `json:"name"`
+			Postcode  string     `json:"postcode"`
+			District  string     `json:"district"`
+			Length    int32      `json:"length,omitempty"`
+			Lat       float64    `json:"lat"`
+			Lon       float64    `json:"lon"`
+			Relevance uint64     `json:"relevance"`
+		}{
+			ID:        p.ID,
+			Class:     p.Class,
+			Name:      p.Name,
+			Postcode:  p.District.Postcode,
+			District:  p.District.District,
+			Length:    p.Length,
+			Lat:       p.Lat,
+			Lon:       p.Lon,
+			Relevance: p.Relevance,
+		})
+	}
+	if p.Class == locationClass {
+		return json.Marshal(&struct {
+			ID          int        `json:"id"`
+			Class       PlaceClass `json:"class"`
+			Type        string     `json:"type"`
+			Name        string     `json:"name"`
+			Street      string     `json:"street"`
+			StreetID    int        `json:"streetID"`
+			HouseNumber string     `json:"houseNumber"`
+			Postcode    string     `json:"postcode"`
+			District    string     `json:"district"`
+			Lat         float64    `json:"lat"`
+			Lon         float64    `json:"lon"`
+			Relevance   uint64     `json:"relevance"`
+		}{
+			ID:          p.ID,
+			Class:       p.Class,
+			Type:        p.Type,
+			Name:        p.Name,
+			Street:      p.Street.Name,
+			StreetID:    p.Street.ID,
+			HouseNumber: p.HouseNumber,
+			Postcode:    p.District.Postcode,
+			District:    p.District.District,
+			Lat:         p.Lat,
+			Lon:         p.Lon,
+			Relevance:   p.Relevance,
+		})
+	}
+	if p.Class == houseNumberClass {
+		return json.Marshal(&struct {
+			ID          int        `json:"id"`
+			Class       PlaceClass `json:"class"`
+			Street      string     `json:"street"`
+			StreetID    int        `json:"streetID"`
+			HouseNumber string     `json:"houseNumber"`
+			Postcode    string     `json:"postcode"`
+			District    string     `json:"district"`
+			Lat         float64    `json:"lat"`
+			Lon         float64    `json:"lon"`
+			Relevance   uint64     `json:"relevance"`
+		}{
+			ID:          p.ID,
+			Class:       p.Class,
+			Street:      p.Street.Name,
+			StreetID:    p.Street.ID,
+			HouseNumber: p.HouseNumber,
+			Postcode:    p.District.Postcode,
+			District:    p.District.District,
+			Lat:         p.Lat,
+			Lon:         p.Lon,
+			Relevance:   p.Relevance,
+		})
+	}
+	return []byte{}, fmt.Errorf("unexpected class '%s'", p.Type)
 }
 
 type result struct {
@@ -104,7 +203,7 @@ type Places struct {
 	// counts
 	streetCount      int
 	locationCount    int
-	housenumberCount int
+	houseNumberCount int
 
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
@@ -121,14 +220,14 @@ type Places struct {
 type Metrics struct {
 	StreetCount      int
 	LocationCount    int
-	HousenumberCount int
+	HouseNumberCount int
 	PrefixCount      int
 	CacheMetrics     *ristretto.Metrics
 	QueryCount       int64
 	AvgLookupTime    time.Duration
 }
 
-func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
+func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
 
 	// basic init
 	places := Places{
@@ -164,9 +263,9 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers io.Reader
 	for _, s := range streets {
 		places.placesMap[placeID] = &place{
 			ID:         placeID,
-			Type:       "road",
+			Class:      streetClass,
 			Name:       s.Name,
-			Cluster:    s.Cluster,
+			cluster:    s.Cluster,
 			District:   districtMap[s.Postcode],
 			Lat:        s.Lat,
 			Lon:        s.Lon,
@@ -190,10 +289,11 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers io.Reader
 		streetPlace := places.placesMap[streetID2placeID[l.StreetID]]
 		p := place{
 			ID:          placeID,
+			Class:       locationClass,
 			Type:        l.Type,
 			Name:        l.Name,
 			Street:      streetPlace,
-			Housenumber: l.Housenumber,
+			HouseNumber: l.HouseNumber,
 			District:    districtMap[l.Postcode],
 			Lat:         l.Lat,
 			Lon:         l.Lon,
@@ -205,35 +305,35 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers io.Reader
 		places.locationCount += 1
 	}
 
-	var housenumberList []*housenumber
-	err = gocsv.Unmarshal(csvHousenumbers, &housenumberList)
+	var houseNumberList []*houseNumber
+	err = gocsv.Unmarshal(csvHouseNumbers, &houseNumberList)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall housenumbers CSV data: %w", err)
+		return nil, fmt.Errorf("failed to unmarshall house numbers CSV data: %w", err)
 	}
 
-	// extend places map by housenumbers (assigning IDs, linking street-places and districts)
-	for _, h := range housenumberList {
+	// extend places map by house numbers (assigning IDs, linking street-places and districts)
+	for _, h := range houseNumberList {
 		streetPlace := places.placesMap[streetID2placeID[h.StreetID]]
 		p := place{
 			ID:          placeID,
-			Type:        "housenumber",
+			Class:       houseNumberClass,
 			Street:      streetPlace,
-			Housenumber: h.Housenumber,
+			HouseNumber: h.HouseNumber,
 			District:    districtMap[h.Postcode],
 			Lat:         h.Lat,
 			Lon:         h.Lon,
 		}
 		places.placesMap[placeID] = &p
-		streetPlace.housenumbers = append(streetPlace.housenumbers, &p)
+		streetPlace.houseNumbers = append(streetPlace.houseNumbers, &p)
 		placeID += 1
-		places.housenumberCount += 1
+		places.houseNumberCount += 1
 	}
 
 	// collect streets and locations
 	sl := make([]*place, places.streetCount+places.locationCount)
 	i := 0
 	for _, p := range places.placesMap {
-		if p.Type != "housenumber" {
+		if p.Class != houseNumberClass {
 			sl[i] = p
 			i += 1
 		}
@@ -307,8 +407,8 @@ func placeLesser(i, j *place) bool {
 	}
 
 	// if types differ streets over locations
-	if i.Type != j.Type {
-		if i.Type == "road" {
+	if i.Class != j.Class {
+		if i.Class == streetClass {
 			return true
 		} else {
 			return false
@@ -316,7 +416,7 @@ func placeLesser(i, j *place) bool {
 	}
 
 	// if streets, less by longer length (by the above clause, types must be equal)
-	if i.Type == "road" {
+	if i.Class == streetClass {
 		if i.Length > j.Length {
 			return true
 		} else {
@@ -390,7 +490,7 @@ func (bp *Places) Metrics() Metrics {
 	return Metrics{
 		StreetCount:      bp.streetCount,
 		LocationCount:    bp.locationCount,
-		HousenumberCount: bp.housenumberCount,
+		HouseNumberCount: bp.houseNumberCount,
 		PrefixCount:      len(bp.prefixMap),
 		CacheMetrics:     bp.cache.Metrics,
 		AvgLookupTime:    avgLookupTime,
@@ -496,19 +596,19 @@ func (bp *Places) queryStreetsAndLocations(_ context.Context, input string) []*r
 	return []*result{}
 }
 
-func (bp *Places) QueryHousenumbers(ctx context.Context, placeID int, housenumber string) []*result {
+func (bp *Places) QueryHouseNumbers(ctx context.Context, placeID int, houseNumber string) []*result {
 	start := time.Now()
-	results := bp.queryHousenumbers(ctx, placeID, housenumber)
+	results := bp.queryHouseNumbers(ctx, placeID, houseNumber)
 	go bp.updateQueryStats(time.Since(start))
 	return results
 }
 
-func (bp *Places) queryHousenumbers(_ context.Context, placeID int, housenumber string) []*result {
+func (bp *Places) queryHouseNumbers(_ context.Context, placeID int, houseNumber string) []*result {
 	if p, ok := bp.placesMap[placeID]; ok {
-		for _, h := range p.housenumbers {
-			if h.Housenumber == housenumber {
+		for _, h := range p.houseNumbers {
+			if h.HouseNumber == houseNumber {
 				return []*result{
-					&result{
+					{
 						Distance: 0,
 						Place:    h,
 					},
