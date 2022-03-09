@@ -107,31 +107,11 @@ func (app *App) Initialize() error {
 	// register web routes
 	router.StaticFS("web/", http.Dir("web"))
 
-	// open the berlin places csv
-	file, err := os.Open(viper.GetString("CSV"))
-	if err != nil {
-		return fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
 	// initialize places
-	maxPrefixLength := 6
-	minCompletionCount := 6
-	levMinimum := 0
-	berlinPlaces, err := places.NewPlaces(file, maxPrefixLength, minCompletionCount, levMinimum)
+	berlinPlaces, err := initPlaces()
 	if err != nil {
-		panic(fmt.Errorf("failed to initialize berlinPlaces: %w", err))
+		return err
 	}
-	log.Debug().
-		Int("maxPrefixLength", maxPrefixLength).
-		Int("minCompletionCount", minCompletionCount).
-		Int("levMinimum", levMinimum).
-		Int("placeCount", berlinPlaces.Metrics().PlaceCount).
-		Int("prefixCount", berlinPlaces.Metrics().PrefixCount).
-		Msg("initialized places")
-
 	// register places routes
 	internal.NewBerlinPlacesAPI(berlinPlaces).RegisterRoutes(router.Group("/api"))
 
@@ -187,4 +167,63 @@ func (app *App) Shutdown() {
 	if err := app.Server.Shutdown(ctx); err != nil {
 		log.Error().Err(err).Msg("server shutdown failed")
 	}
+}
+
+func initPlaces() (*places.Places, error) {
+
+	// open the districts CSV
+	districtsFile, errDF := os.Open(viper.GetString("CSV"))
+	if errDF != nil {
+		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errDF)
+	}
+	defer func() {
+		_ = districtsFile.Close()
+	}()
+
+	// open the streets CSV
+	streetsFile, errSF := os.Open(viper.GetString("CSV"))
+	if errSF != nil {
+		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errSF)
+	}
+	defer func() {
+		_ = streetsFile.Close()
+	}()
+
+	// open the locations CSV
+	locationsFile, errLF := os.Open(viper.GetString("CSV"))
+	if errLF != nil {
+		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errLF)
+	}
+	defer func() {
+		_ = locationsFile.Close()
+	}()
+
+	// open the berlin places csv
+	housnumbersFile, errHNF := os.Open(viper.GetString("CSV"))
+	if errHNF != nil {
+		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errHNF)
+	}
+	defer func() {
+		_ = housnumbersFile.Close()
+	}()
+
+	// initialize places
+	maxPrefixLength := 6
+	minCompletionCount := 6
+	levMinimum := 0
+	berlinPlaces, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, housnumbersFile, maxPrefixLength, minCompletionCount, levMinimum)
+	if err != nil {
+		panic(fmt.Errorf("failed to initialize berlinPlaces: %w", err))
+	}
+	log.Debug().
+		Int("maxPrefixLength", maxPrefixLength).
+		Int("minCompletionCount", minCompletionCount).
+		Int("levMinimum", levMinimum).
+		Int("streetCount", berlinPlaces.Metrics().StreetCount).
+		Int("locationCount", berlinPlaces.Metrics().LocationCount).
+		Int("housenumberCount", berlinPlaces.Metrics().HousenumberCount).
+		Int("prefixCount", berlinPlaces.Metrics().PrefixCount).
+		Msg("initialized places")
+
+	return berlinPlaces, nil
 }

@@ -21,15 +21,13 @@ type district struct {
 }
 
 type street struct {
-	ID         int     `csv:"id"`
-	Name       string  `csv:"name"`
-	Cluster    string  `csv:"cluster"`
-	Postcode   string  `csv:"postcode"`
-	Lat        float64 `csv:"lat"`
-	Lon        float64 `csv:"lat"`
-	Length     int32   `csv:"length"`
-	Relevance  uint64
-	SimpleName string
+	ID       int     `csv:"id"`
+	Name     string  `csv:"name"`
+	Cluster  string  `csv:"cluster"`
+	Postcode string  `csv:"postcode"`
+	Lat      float64 `csv:"lat"`
+	Lon      float64 `csv:"lat"`
+	Length   int32   `csv:"length"`
 }
 
 type location struct {
@@ -40,8 +38,6 @@ type location struct {
 	Postcode    string  `csv:"postcode"`
 	Lat         float64 `csv:"lat"`
 	Lon         float64 `csv:"lat"`
-	Relevance   uint64
-	SimpleName  string
 }
 
 type housenumber struct {
@@ -51,30 +47,27 @@ type housenumber struct {
 	Lat         float64 `csv:"lat"`
 	Lon         float64 `csv:"lat"`
 }
-type result struct {
-	Distance   int    `json:"distance"`
-	Percentage int    `json:"percentage"`
-	Place      *place `json:"place"`
-}
 
 type place struct {
-	PlaceID       int64   `csv:"place_id" json:"placeID"`
-	ParentPlaceID int64   `csv:"parent_place_id" json:"parentPlaceID"`
-	OSMID         string  `csv:"osm_id" json:"osmID,omitempty"`
-	Class         string  `csv:"class" json:"class"`
-	Type          string  `csv:"type" json:"type"`
-	Name          string  `csv:"name" json:"name"`
-	Street        string  `csv:"street" json:"street,omitempty"`
-	HouseNumber   string  `csv:"house_number" json:"houseNumber,omitempty"`
-	Boundary      string  `csv:"boundary" json:"boundary,omitempty"`
-	Neighbourhood string  `csv:"neighbourhood" json:"neighbourhood,omitempty"`
-	Suburb        string  `csv:"suburb" json:"suburb,omitempty"`
-	Postcode      string  `csv:"postcode" json:"postcode"`
-	City          string  `csv:"city" json:"city"`
-	Lat           float64 `csv:"lat" json:"lat"`
-	Lon           float64 `csv:"lat" json:"lat"`
-	Relevance     uint64  `json:"relevance"`
-	SimpleName    string  `json:"simpleName"` // the sanitized name used for lookups
+	ID           int    `json:"placeID"`
+	Type         string `json:"type"`
+	Name         string `json:"name"`
+	Cluster      string
+	Street       *place    // in case of a location or a housenumber, this links (up) to the street
+	Housenumber  string    `json:"housenumber,omitempty"`
+	District     *district `json:"district"` // this links to the postcode and district
+	Lat          float64   `json:"lat"`
+	Lon          float64   `json:"lon"`
+	Length       int32
+	Relevance    uint64 `json:"relevance"`
+	simpleName   string
+	housenumbers []*place // in case of a street, this links (down) to associated housenumbers
+	locations    []*place // in case of a street, this links (down) to associated locations
+}
+
+type result struct {
+	Distance int    `json:"distance"`
+	Place    *place `json:"place"`
 }
 
 // prefix represents precomputed completions and places for a given prefix
@@ -102,20 +95,16 @@ type Places struct {
 	// the minimum input length before doing Levenshtein
 	levMinimum int
 
-	// a list of all places
-	places []*place
+	// all places
+	placesMap map[int]*place
 
-	// a list of all districts
-	districts []*district
+	// a list of streets and locations (needed for completion)
+	streetsAndLocations []*place
 
-	// a list of all streets
-	streets []*street
-
-	// a list of all streets
-	locations []*location
-
-	// a list of all housenumbers
-	housenumbers []*housenumber
+	// counts
+	streetCount      int
+	locationCount    int
+	housenumberCount int
 
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
@@ -130,14 +119,16 @@ type Places struct {
 }
 
 type Metrics struct {
-	PlaceCount    int
-	PrefixCount   int
-	CacheMetrics  *ristretto.Metrics
-	QueryCount    int64
-	AvgLookupTime time.Duration
+	StreetCount      int
+	LocationCount    int
+	HousenumberCount int
+	PrefixCount      int
+	CacheMetrics     *ristretto.Metrics
+	QueryCount       int64
+	AvgLookupTime    time.Duration
 }
 
-func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers, csv io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
+func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
 
 	// basic init
 	places := Places{
@@ -146,38 +137,115 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers, csv io.R
 		levMinimum:         levMinimum,
 	}
 
-	// unmarshal
-	err := gocsv.Unmarshal(csvDistricts, &places.districts)
+	// unmarshal district list
+	var districtList []*district
+	err := gocsv.Unmarshal(csvDistricts, &districtList)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall districts CSV data: %w", err)
+		return nil, fmt.Errorf("failed to unmarshall districtList CSV data: %w", err)
 	}
 
-	err = gocsv.Unmarshal(csvStreets, &places.streets)
+	// convert district list to map
+	districtMap := make(map[string]*district)
+	for _, d := range districtList {
+		districtMap[d.Postcode] = d
+	}
+
+	// unmarshal street list
+	var streets []*street
+	err = gocsv.Unmarshal(csvStreets, &streets)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall streets CSV data: %w", err)
 	}
 
-	err = gocsv.Unmarshal(csvLocations, &places.locations)
+	// convert street list to place map (reassigning IDs and linking districts)
+	places.placesMap = make(map[int]*place)
+	var placeID int
+	var streetID2placeID = make(map[int]int)
+	for _, s := range streets {
+		places.placesMap[placeID] = &place{
+			ID:         placeID,
+			Type:       "road",
+			Name:       s.Name,
+			Cluster:    s.Cluster,
+			District:   districtMap[s.Postcode],
+			Lat:        s.Lat,
+			Lon:        s.Lon,
+			Length:     s.Length,
+			simpleName: sanitizeString(s.Name),
+		}
+		streetID2placeID[s.ID] = placeID
+		placeID += 1
+		places.streetCount += 1
+	}
+
+	// unmarshal location list
+	var locationList []*location
+	err = gocsv.Unmarshal(csvLocations, &locationList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall locations CSV data: %w", err)
 	}
 
-	err = gocsv.Unmarshal(csvHousenumbers, &places.housenumbers)
+	// extend places map by locations (assigning IDs, linking street-places and districts)
+	for _, l := range locationList {
+		streetPlace := places.placesMap[streetID2placeID[l.StreetID]]
+		p := place{
+			ID:          placeID,
+			Type:        l.Type,
+			Name:        l.Name,
+			Street:      streetPlace,
+			Housenumber: l.Housenumber,
+			District:    districtMap[l.Postcode],
+			Lat:         l.Lat,
+			Lon:         l.Lon,
+			simpleName:  sanitizeString(l.Name),
+		}
+		places.placesMap[placeID] = &p
+		streetPlace.locations = append(streetPlace.locations, &p)
+		placeID += 1
+		places.locationCount += 1
+	}
+
+	var housenumberList []*housenumber
+	err = gocsv.Unmarshal(csvHousenumbers, &housenumberList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall housenumbers CSV data: %w", err)
 	}
 
-	err = gocsv.Unmarshal(csv, &places.places)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall CSV data: %w", err)
+	// extend places map by housenumbers (assigning IDs, linking street-places and districts)
+	for _, h := range housenumberList {
+		streetPlace := places.placesMap[streetID2placeID[h.StreetID]]
+		p := place{
+			ID:          placeID,
+			Type:        "housenumber",
+			Street:      streetPlace,
+			Housenumber: h.Housenumber,
+			District:    districtMap[h.Postcode],
+			Lat:         h.Lat,
+			Lon:         h.Lon,
+		}
+		places.placesMap[placeID] = &p
+		streetPlace.housenumbers = append(streetPlace.housenumbers, &p)
+		placeID += 1
+		places.housenumberCount += 1
 	}
 
-	// compute simple names
-	places.computeSimpleNames()
-	places.computeSimpleStreetNames()
-	places.computeSimpleLocationNames()
+	// collect streets and locations
+	sl := make([]*place, places.streetCount+places.housenumberCount)
+	i := 0
+	for _, p := range places.placesMap {
+		if p.Type != "housenumber" {
+			sl[i] = p
+			i += 1
+		}
+	}
 
-	// compute pm
+	// sort streets and locations by length and then lex order
+	sort.Slice(sl, func(i, j int) bool {
+		return placeLesser(sl[i], sl[j])
+	})
+	places.streetsAndLocations = sl
+
+	// compute placesMap
 	places.computePrefixMap()
 
 	// initialize cache
@@ -207,25 +275,58 @@ func sanitizeString(s string) string {
 	return strings.ToLower(strings.Trim(s, " -"))
 }
 
-// computeSimpleNames computes the simple names.
-func (bp *Places) computeSimpleNames() {
-	for _, p := range bp.places {
-		p.SimpleName = sanitizeString(p.Name)
-	}
-}
+// placeLesser compares two places and returns true if the first is less (i.e. to
+// be higher ranked in a list) than the second one.
+func placeLesser(i, j *place) bool {
 
-// computeSimpleStreetNames computes simple names for streets.
-func (bp *Places) computeSimpleStreetNames() {
-	for _, l := range bp.locations {
-		l.SimpleName = sanitizeString(l.Name)
+	// less by character length
+	if len(i.simpleName) != len(j.simpleName) {
+		if len(i.simpleName) < len(j.simpleName) {
+			return true
+		} else {
+			return false
+		}
 	}
-}
 
-// computeSimpleLocationNames computes simple names for locations.
-func (bp *Places) computeSimpleLocationNames() {
-	for _, l := range bp.locations {
-		l.SimpleName = sanitizeString(l.Name)
+	// less by lex
+	if i.simpleName != j.simpleName {
+		if i.simpleName < j.simpleName {
+			return true
+		} else {
+			return false
+		}
 	}
+
+	// if relevance differs, less by greater relevance
+	if i.Relevance != j.Relevance {
+		if i.Relevance > j.Relevance {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// if types differ streets over locations
+	if i.Type != j.Type {
+		if i.Type == "road" {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// if streets, less by longer length (by the above clause, types must be equal)
+	if i.Type == "road" {
+		if i.Length > j.Length {
+			return true
+		} else {
+			return false
+		}
+
+	}
+
+	// defaults
+	return false
 }
 
 // computePrefixMap associates places with prefixes.
@@ -233,17 +334,9 @@ func (bp *Places) computePrefixMap() {
 
 	pm := make(map[string]*prefix)
 
-	// sort places by length and lex order
-	sort.Slice(bp.places,
-		func(i, j int) bool {
-			li := bp.places[i].SimpleName
-			lj := bp.places[j].SimpleName
-			return len(li) < len(lj) || (len(li) == len(lj) && li < lj)
-		})
-
 	for d := 1; d <= bp.maxPrefixLength; d++ {
-		for _, p := range bp.places {
-			runes := []rune(p.SimpleName)
+		for _, p := range bp.streetsAndLocations {
+			runes := []rune(p.simpleName)
 			runesLen := len(runes)
 			prefixLen := min(runesLen, d)
 			remainderLength := runesLen - prefixLen
@@ -258,9 +351,8 @@ func (bp *Places) computePrefixMap() {
 			if remainderLength == 0 {
 
 				r := result{
-					Distance:   0,
-					Percentage: 0,
-					Place:      p,
+					Distance: 0,
+					Place:    p,
 				}
 				pm[prefixStr].exact = append(pm[prefixStr].exact, &r)
 				continue
@@ -272,9 +364,8 @@ func (bp *Places) computePrefixMap() {
 				// if completions are not yet full
 				if len(pm[prefixStr].completions) < bp.minCompletionCount {
 					r := result{
-						Distance:   remainderLength,
-						Percentage: 0,
-						Place:      p,
+						Distance: remainderLength,
+						Place:    p,
 					}
 
 					// add place as completion
@@ -297,11 +388,13 @@ func (bp *Places) Metrics() Metrics {
 	defer bp.m.RUnlock()
 	avgLookupTime := bp.avgQueryTime
 	return Metrics{
-		PlaceCount:    len(bp.places),
-		PrefixCount:   len(bp.prefixMap),
-		CacheMetrics:  bp.cache.Metrics,
-		AvgLookupTime: avgLookupTime,
-		QueryCount:    bp.queryCount,
+		StreetCount:      bp.streetCount,
+		LocationCount:    bp.locationCount,
+		HousenumberCount: bp.housenumberCount,
+		PrefixCount:      len(bp.prefixMap),
+		CacheMetrics:     bp.cache.Metrics,
+		AvgLookupTime:    avgLookupTime,
+		QueryCount:       bp.queryCount,
 	}
 }
 
@@ -322,7 +415,6 @@ func (bp *Places) Query(ctx context.Context, input string) []*result {
 	}()
 
 	return results
-
 }
 func (bp *Places) query(_ context.Context, input string) []*result {
 
@@ -357,11 +449,10 @@ func (bp *Places) query(_ context.Context, input string) []*result {
 			}()
 
 			return results
-
 		} else {
 
-			// do Levenshtein on all places
-			results := bp.levenshtein(bp.places, input)
+			// do Levenshtein on all streets and locations
+			results := bp.levenshtein(bp.streetsAndLocations, input)
 
 			// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
 			go func() {
@@ -390,8 +481,8 @@ func (bp *Places) query(_ context.Context, input string) []*result {
 	// there is no matching prefix, but above levMinimum
 	if inputLength >= bp.levMinimum {
 
-		// do levenshtein on the complete set of places
-		results := bp.levenshtein(bp.places, input)
+		// do levenshtein on all streets and location
+		results := bp.levenshtein(bp.streetsAndLocations, input)
 
 		// try to cache results
 		go func() {
@@ -407,21 +498,20 @@ func (bp *Places) query(_ context.Context, input string) []*result {
 
 func (bp *Places) levenshtein(places []*place, text string) []*result {
 
-	// for each place compute the Levenshtein-Distance between its simple name and the given text
+	// for each placeOld compute the Levenshtein-Distance between its simple name and the given text
 	results := make([]*result, len(places))
 	for i, p := range places {
 		results[i] = &result{
-			Distance:   levenshtein.ComputeDistance(text, p.SimpleName),
-			Percentage: 0,
-			Place:      p,
+			Distance: levenshtein.ComputeDistance(text, p.simpleName),
+			Place:    p,
 		}
 	}
 
-	// sort the completions slice by Levenshtein-Distance ascending and relevance descending
+	// sort the completions slice by Levenshtein-Distance and then lesser function
 	sort.Slice(results, func(i, j int) bool {
 		di := results[i].Distance
 		dj := results[j].Distance
-		return di < dj || (di == dj && results[i].Place.Relevance > results[j].Place.Relevance)
+		return di < dj || (di == dj && placeLesser(results[i].Place, results[j].Place))
 	})
 
 	go func() {
