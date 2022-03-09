@@ -83,6 +83,10 @@ type place struct {
 	locations    []*place // in case of a street, this links (down) to associated locations
 }
 
+func osmURL(lat, lon float64) string {
+	return fmt.Sprintf("https://www.openstreetmap.org/?mlat=%f&mlon=%f#map=18/%f/%f", lat, lon, lat, lon)
+}
+
 func (p *place) MarshalJSON() ([]byte, error) {
 	if p.Class == streetClass {
 		return json.Marshal(&struct {
@@ -94,17 +98,18 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			Length    int32      `json:"length,omitempty"`
 			Lat       float64    `json:"lat"`
 			Lon       float64    `json:"lon"`
+			OSM       string     `json:"osm"`
 			Relevance uint64     `json:"relevance"`
 		}{
-			ID:        p.ID,
-			Class:     p.Class,
-			Name:      p.Name,
-			Postcode:  p.District.Postcode,
-			District:  p.District.District,
-			Length:    p.Length,
-			Lat:       p.Lat,
-			Lon:       p.Lon,
-			Relevance: p.Relevance,
+			ID:       p.ID,
+			Class:    p.Class,
+			Name:     p.Name,
+			Postcode: p.District.Postcode,
+			District: p.District.District,
+			Length:   p.Length,
+			Lat:      p.Lat,
+			Lon:      p.Lon,
+			OSM:      osmURL(p.Lat, p.Lon),
 		})
 	}
 	if p.Class == locationClass {
@@ -120,6 +125,7 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District    string     `json:"district"`
 			Lat         float64    `json:"lat"`
 			Lon         float64    `json:"lon"`
+			OSM         string     `json:"osm"`
 			Relevance   uint64     `json:"relevance"`
 		}{
 			ID:          p.ID,
@@ -133,6 +139,7 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District:    p.District.District,
 			Lat:         p.Lat,
 			Lon:         p.Lon,
+			OSM:         osmURL(p.Lat, p.Lon),
 			Relevance:   p.Relevance,
 		})
 	}
@@ -147,6 +154,7 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District    string     `json:"district"`
 			Lat         float64    `json:"lat"`
 			Lon         float64    `json:"lon"`
+			OSM         string     `json:"osm"`
 			Relevance   uint64     `json:"relevance"`
 		}{
 			ID:          p.ID,
@@ -158,6 +166,7 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District:    p.District.District,
 			Lat:         p.Lat,
 			Lon:         p.Lon,
+			OSM:         osmURL(p.Lat, p.Lon),
 			Relevance:   p.Relevance,
 		})
 	}
@@ -511,9 +520,9 @@ func (bp *Places) updateQueryStats(duration time.Duration) {
 
 func (bp *Places) QueryStreetsAndLocations(ctx context.Context, input string) []*result {
 	start := time.Now()
-	results := bp.queryStreetsAndLocations(ctx, input)
+	r := bp.queryStreetsAndLocations(ctx, input)
 	go bp.updateQueryStats(time.Since(start))
-	return results
+	return r
 }
 
 func (bp *Places) queryStreetsAndLocations(_ context.Context, input string) []*result {
@@ -596,27 +605,27 @@ func (bp *Places) queryStreetsAndLocations(_ context.Context, input string) []*r
 	return []*result{}
 }
 
-func (bp *Places) QueryHouseNumbers(ctx context.Context, placeID int, houseNumber string) []*result {
+func (bp *Places) GetPlace(ctx context.Context, placeID int, houseNumber string) *place {
 	start := time.Now()
-	results := bp.queryHouseNumbers(ctx, placeID, houseNumber)
+	p := bp.getPlace(ctx, placeID, houseNumber)
 	go bp.updateQueryStats(time.Since(start))
-	return results
+	return p
 }
 
-func (bp *Places) queryHouseNumbers(_ context.Context, placeID int, houseNumber string) []*result {
+func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *place {
 	if p, ok := bp.placesMap[placeID]; ok {
-		for _, h := range p.houseNumbers {
-			if h.HouseNumber == houseNumber {
-				return []*result{
-					{
-						Distance: 0,
-						Place:    h,
-					},
+		if houseNumber == "" {
+			return p
+		} else {
+			for _, h := range p.houseNumbers {
+				if h.HouseNumber == houseNumber {
+					return h
 				}
 			}
 		}
 	}
-	return []*result{}
+
+	return nil
 }
 
 func (bp *Places) levenshtein(places []*place, text string) []*result {
