@@ -473,10 +473,11 @@ create table streets_dump as (
 	select 
 	 	id,
 	 	name, 
-	 	cluster_id,
+	 	cluster_id as cluster,
 	 	postcode,
 	 	ST_Y(centroid) as lat, 
-  	 	ST_X(centroid) as lon
+  	 	ST_X(centroid) as lon,
+  	 	length
 	from streets
 );
 
