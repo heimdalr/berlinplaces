@@ -43,9 +43,9 @@ const annotateDuplicates = (arr) => {
         }
     }
 
-    for (let i = 0; i < arr.length; i++) {
-        arr[i].name = arr[i].place.name
-    }
+    // for (let i = 0; i < arr.length; i++) {
+    //     arr[i].name = arr[i].place.name
+    // }
     return arr
 }
 
