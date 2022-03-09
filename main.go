@@ -80,15 +80,15 @@ func viperSetup() {
 	// default values
 	viper.SetDefault("MODE", "debug") // debug->debug or anything for release
 	viper.SetDefault("PORT", "8080")
-	viper.SetDefault("CSV", "berlin.csv") // relative to project root
+	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root
+	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
+	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
+	viper.SetDefault("HOUSENUMBERS_CSV", "_data/housenumbers.csv")
 
 }
 
 // viperValidate ensure a valid configuration
 func viperValidate() error {
-	if viper.GetString("CSV") == "" {
-		return fmt.Errorf("missing configuration for ('%s_CSV')", viperEnvPrefix)
-	}
 	return nil
 }
 
@@ -172,7 +172,7 @@ func (app *App) Shutdown() {
 func initPlaces() (*places.Places, error) {
 
 	// open the districts CSV
-	districtsFile, errDF := os.Open(viper.GetString("CSV"))
+	districtsFile, errDF := os.Open(viper.GetString("DISTRICTS_CSV"))
 	if errDF != nil {
 		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errDF)
 	}
@@ -181,7 +181,7 @@ func initPlaces() (*places.Places, error) {
 	}()
 
 	// open the streets CSV
-	streetsFile, errSF := os.Open(viper.GetString("CSV"))
+	streetsFile, errSF := os.Open(viper.GetString("STREETS_CSV"))
 	if errSF != nil {
 		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errSF)
 	}
@@ -190,7 +190,7 @@ func initPlaces() (*places.Places, error) {
 	}()
 
 	// open the locations CSV
-	locationsFile, errLF := os.Open(viper.GetString("CSV"))
+	locationsFile, errLF := os.Open(viper.GetString("LOCATIONS_CSV"))
 	if errLF != nil {
 		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errLF)
 	}
@@ -199,7 +199,7 @@ func initPlaces() (*places.Places, error) {
 	}()
 
 	// open the berlin places csv
-	housnumbersFile, errHNF := os.Open(viper.GetString("CSV"))
+	housnumbersFile, errHNF := os.Open(viper.GetString("HOUSENUMBERS_CSV"))
 	if errHNF != nil {
 		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errHNF)
 	}
