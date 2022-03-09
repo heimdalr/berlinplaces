@@ -26,7 +26,7 @@ type street struct {
 	Cluster  string  `csv:"cluster"`
 	Postcode string  `csv:"postcode"`
 	Lat      float64 `csv:"lat"`
-	Lon      float64 `csv:"lat"`
+	Lon      float64 `csv:"lon"`
 	Length   int32   `csv:"length"`
 }
 
@@ -37,7 +37,7 @@ type location struct {
 	Housenumber string  `csv:"housenumber"`
 	Postcode    string  `csv:"postcode"`
 	Lat         float64 `csv:"lat"`
-	Lon         float64 `csv:"lat"`
+	Lon         float64 `csv:"lon"`
 }
 
 type housenumber struct {
@@ -45,7 +45,7 @@ type housenumber struct {
 	Housenumber string  `csv:"housenumber"`
 	Postcode    string  `csv:"postcode"`
 	Lat         float64 `csv:"lat"`
-	Lon         float64 `csv:"lat"`
+	Lon         float64 `csv:"lon"`
 }
 
 type place struct {
@@ -230,7 +230,7 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHousenumbers io.Reader
 	}
 
 	// collect streets and locations
-	sl := make([]*place, places.streetCount+places.housenumberCount)
+	sl := make([]*place, places.streetCount+places.locationCount)
 	i := 0
 	for _, p := range places.placesMap {
 		if p.Type != "housenumber" {
