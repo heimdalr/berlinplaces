@@ -1,56 +1,62 @@
+
+// annotateDuplicates adds a discriminator string to items with the same name
 const annotateDuplicates = (arr) => {
 
+    // if there array has zero or one element, there can't be duplicates
+    if (arr.length <= 1) return arr;
 
-    // compute a set of duplicate names
-    let u = new Set(); // set to store names we have seen
-    let d = new Set(); // set to store names that appear several times
-    for (const i in arr) {
+    // initialize the discriminator array (0 no discriminator needed, 1 district needed, 2 district and postcode needed)
+    let disc = Array(arr.length).fill(0)
 
-        // get the name of the current place
-        const name = arr[i].place.name;
+    // compare each pair
+    for (let i = 0; i < arr.length - 1; i++) {
+        for (let j = i+1; j < arr.length; j++) {
+            const ii = arr[i].place;
+            const ij = arr[j].place;
 
-        // copy name to object root (typeahed likes it there)
-        arr[i].name = name
+            // if names are equal
+            if (ii.name === ij.name) {
 
-        // if we have seen this name already add it to the duplicate set
-        if (!u.has(name)) {
-            u.add(name)
-        } else {
-            d.add(name)
-        }
-    }
-
-    // for each item which with a name that appears several times in the result set (an entry in the duplicates set),
-    // add the postcode as discriminator
-    for (const i in arr) {
-        if (d.has(arr[i].name)) {
-            const place = arr[i].place;
-            // TODO: change to really check, whether the below discriminates the results
-            if (place.boundary) {
-                if (place.neighbourhood) {
-                    arr[i].disc = place.neighbourhood + ", " + place.boundary;
+                // if districts are equal, we also need postcode to discriminate
+                if (ii.district === ij.district) {
+                    disc[i] = disc[j] = 2;
                 } else {
-                    arr[i].disc = place.boundary;
+                    disc[i] = disc[i] === 2 ? 2 : 1;
+                    disc[j] = disc[j] === 2 ? 2 : 1;
                 }
-            } else {
-                arr[i].disc = place.postcode;
             }
-        } else {
-            arr[i].disc = ''
         }
     }
 
+    // set discriminator based on needs computed above
+    for (let i = 0; i < arr.length; i++) {
+        const ii = arr[i].place;
+        switch (disc[i]) {
+            case 2:
+                ii.disc = ii.postcode + ', ' + ii.district
+                break
+            case 1:
+                ii.disc = ii.district
+                break
+            default:
+                ii.disc = ''
+        }
+    }
+
+    for (let i = 0; i < arr.length; i++) {
+        arr[i].name = arr[i].place.name
+    }
     return arr
 }
 
 // init Bloodhound
 let colors_suggestions = new Bloodhound({
     datumTokenizer: function(datum) {
-        return Bloodhound.tokenizers.whitespace(datum.name);
+        return Bloodhound.tokenizers.whitespace(datum.place.name);
     },
     queryTokenizer: Bloodhound.tokenizers.whitespace,
     remote: {
-        url: 'http://localhost:8080/api/?text=%QUERY',
+        url: 'http://localhost:8080/api/complete?text=%QUERY',
         wildcard: '%QUERY',
         rateLimitWait: 100,
         filter: annotateDuplicates
@@ -58,7 +64,7 @@ let colors_suggestions = new Bloodhound({
 });
 
 // init Typeahead
-$('#my_search').typeahead({
+$('#acInput').typeahead({
         hint: true,
         highlight: true,
         minLength: 1
@@ -67,59 +73,46 @@ $('#my_search').typeahead({
         name: 'colors',
         displayKey: 'name',
         source: colors_suggestions.ttAdapter(),
-        limit: 'Infinity', // let the server descide the numbert of hits
+        limit: 'Infinity', // let the server descide the number of hits
         templates: {
             suggestion: function(data) {
                 let str = '<div>';
-                switch (data.place.class)
-                {
-                    case 'amenity':
-                        str += '<i class="bi bi-cup-straw"></i>'
-                        break;
-                    case 'tourism':
+                if (data.place.class === 'location') {
+                    if (['house', 'museum', 'hostel', 'hotel'].includes(data.place.type)) {
                         str += '<i class="bi bi-bank"></i>'
-                        break;
-                    default: // 'highway':
+                    } else if (['nightclub', 'pub', 'restaurant', 'house', 'cafe', 'biergarten', 'bar'].includes(data.place.type)) {
+                        str += '<i class="bi bi-cup-straw"></i>'
+                    }
+                } else {
                         str += '<i class="bi bi-geo-alt"></i>'
                 }
-                str += data.name
-                if (data.disc !== '') {
-                    str += '<span class="sugestion-discriminator">(' + data.disc + ')</span>';
+                str += data.place.name
+                if (data.place.disc !== '') {
+                    str += '<span class="sugestion-discriminator">(' + data.place.disc + ')</span>';
                 }
                 return str + '</div>';
             }
         },
     })
     .on("typeahead:selected", function (e, datum) {
-        const place = datum.place;
-
-        let str = datum.name;
-        switch (place.class)
+        const p = datum.place;
+        let str;
+        switch (p.class)
         {
-            case 'highway':
-                str += place.neighbourhood ? ", " + place.neighbourhood : ""
-                str += place.boundary ? ", " + place.boundary : ""
-                add = place.postcode ? " " + place.postcode : "";
-                add += place.city ? " " + place.city : "";
-                str += add ? ", " + add : "";
+            case 'street':
+                str = p.name + ' ' + p.postcode + ', ' + p.district  + ' (<a href="' + p.osm + '">osm</a>)'
                 break;
-            default:
-                street = place.street ? place.street : ""
-                street += place.street && place.houseNumber ? " " + place.houseNumber : ""
-                str += street ? ", " + street : ""
-                str += place.neighbourhood ? ", " + place.neighbourhood : ""
-                str += place.boundary ? ", " + place.boundary : ""
-                add = place.postcode ? " " + place.postcode : ""
-                add += place.city ? " " + place.city : ""
-                str += add ? ", " + add : ""
+            case 'location':
+                str = p.name + ' ' + p.street + " " + p.houseNumber + ', ' + p.postcode + ', ' + p.district  + ' (<a href="' + p.osm + '">osm</a>)'
+            default: // 'houseNumber'
+                str = p.street + " " + p.houseNumber + ', ' + p.postcode + ', ' + p.district  + ' (<a href="' + p.osm + '">osm</a>)'
         }
-        //str += ' <a target="_blank" href="https://www.google.com/maps/place/@' + place.lat + "," + place.lon  + ',17z/">(google)</i></a>'
 
         document.getElementById('result').innerHTML = str;
     });
 
 
 $(document).ready(function(){
-    document.getElementById('my_search').focus();
+    document.getElementById('acInput').focus();
 
 })
