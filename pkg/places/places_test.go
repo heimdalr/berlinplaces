@@ -8,13 +8,36 @@ import (
 )
 
 func TestPlaces_query(t *testing.T) {
-	csvString := `
-place_id,parent_place_id,class,type,name,street,housenumber,suburb,postcode,city,lat,lon
-541950,465999,highway,living_street,Elisabeth-Feller-Weg,,,,12205,,52.4280125,13.2992439
-621178,709865,highway,residential,Krokusstraße,,,,12357,,52.4229373,13.4951325
+	districtsCSV := `
+postcode,district
+12524,Treptow-Köpenick
+10961,Friedrichshain-Kreuzberg
 `
-	csvReader := strings.NewReader(csvString)
-	berlinPlaces, err := places.NewPlaces(csvReader, 8, 5, 4)
+	streetsCSV := `
+id,name,cluster,postcode,lat,lon,length
+1,Elisabeth-Feller-Weg,1,12524,52.51121427531362,13.433862108201659, 10
+2,Aachener Straße,1,10961,52.48010401206288,13.318894891444728, 100
+3,Aalemannufer,1,10961,52.57313191552375,13.218142687594606, 1000
+`
+
+	locationsCSV := `
+type,name,street_id,housenumber,postcode,lat,lon
+restaurant,Strandlust,1,3a,12527,52.3762307,13.657224
+`
+	housenumbersCSV := `
+street_id,housenumber,postcode,lat,lon
+1,1,12524,52.4127212,13.5714066
+`
+
+	berlinPlaces, err := places.NewPlaces(
+		strings.NewReader(districtsCSV),
+		strings.NewReader(streetsCSV),
+		strings.NewReader(locationsCSV),
+		strings.NewReader(housenumbersCSV),
+		8,
+		5,
+		4,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
