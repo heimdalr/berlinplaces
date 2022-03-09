@@ -398,25 +398,25 @@ func (bp *Places) Metrics() Metrics {
 	}
 }
 
-func (bp *Places) Query(ctx context.Context, input string) []*result {
-	start := time.Now()
-	results := bp.query(ctx, input)
-	end := time.Now()
-	duration := end.Sub(start)
-	go func() {
-		bp.m.Lock()
-		defer bp.m.Unlock()
-		bp.queryCount += 1
-		if bp.avgQueryTime == 0 {
-			bp.avgQueryTime = duration
-		} else {
-			bp.avgQueryTime = (bp.avgQueryTime + duration) / 2
-		}
-	}()
+func (bp *Places) updateQueryStats(duration time.Duration) {
+	bp.m.Lock()
+	defer bp.m.Unlock()
+	bp.queryCount += 1
+	if bp.avgQueryTime == 0 {
+		bp.avgQueryTime = duration
+	} else {
+		bp.avgQueryTime = (bp.avgQueryTime + duration) / 2
+	}
+}
 
+func (bp *Places) QueryStreetsAndLocations(ctx context.Context, input string) []*result {
+	start := time.Now()
+	results := bp.queryStreetsAndLocations(ctx, input)
+	go bp.updateQueryStats(time.Since(start))
 	return results
 }
-func (bp *Places) query(_ context.Context, input string) []*result {
+
+func (bp *Places) queryStreetsAndLocations(_ context.Context, input string) []*result {
 
 	// dissect the input
 	input = sanitizeString(input)
@@ -493,6 +493,29 @@ func (bp *Places) query(_ context.Context, input string) []*result {
 	}
 
 	// as a last resort return the empty list
+	return []*result{}
+}
+
+func (bp *Places) QueryHousenumbers(ctx context.Context, placeID int, housenumber string) []*result {
+	start := time.Now()
+	results := bp.queryHousenumbers(ctx, placeID, housenumber)
+	go bp.updateQueryStats(time.Since(start))
+	return results
+}
+
+func (bp *Places) queryHousenumbers(_ context.Context, placeID int, housenumber string) []*result {
+	if p, ok := bp.placesMap[placeID]; ok {
+		for _, h := range p.housenumbers {
+			if h.Housenumber == housenumber {
+				return []*result{
+					&result{
+						Distance: 0,
+						Place:    h,
+					},
+				}
+			}
+		}
+	}
 	return []*result{}
 }
 

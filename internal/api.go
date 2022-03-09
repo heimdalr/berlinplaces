@@ -42,7 +42,7 @@ func (bpa BerlinPlacesAPI) get(c *gin.Context) {
 	defer cancel()
 
 	// query the geocoder
-	results := bpa.berlinPlaces.Query(ctx, text)
+	results := bpa.berlinPlaces.QueryStreetsAndLocations(ctx, text)
 
 	// return (i.e. forward) the response
 	c.JSON(http.StatusOK, results)
