@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
@@ -46,10 +47,13 @@ func (api PlacesAPI) getCompletions(w http.ResponseWriter, r *http.Request, _ ht
 	// encode completions
 	j, err := json.Marshal(results)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		panic(fmt.Errorf("failed to marshall results: %w", err))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(j)
+	_, err = w.Write(j)
+	if err != nil {
+		panic(fmt.Errorf("failed to write response body: %w", err))
+	}
 }
 
 func (api PlacesAPI) getPlace(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -83,18 +87,24 @@ func (api PlacesAPI) getPlace(w http.ResponseWriter, r *http.Request, ps httprou
 	// encode place
 	j, err := json.Marshal(p)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		panic(fmt.Errorf("failed to marshall place: %w", err))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(j)
+	_, err = w.Write(j)
+	if err != nil {
+		panic(fmt.Errorf("failed to write response body: %w", err))
+	}
 }
 
 func (api PlacesAPI) getMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	m := api.places.Metrics()
 	j, err := json.Marshal(m)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		panic(fmt.Errorf("failed to marshall metrics: %w", err))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(j)
+	_, err = w.Write(j)
+	if err != nil {
+		panic(fmt.Errorf("failed to write response body: %w", err))
+	}
 }
