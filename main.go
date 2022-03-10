@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/heimdalr/berlinplaces/internal"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
@@ -90,13 +89,18 @@ func (app *App) Initialize() error {
 	// initialize a router.
 	router := httprouter.New()
 
+	router.PanicHandler = func(w http.ResponseWriter, r *http.Request, params interface{}) {
+		log.Error().Msgf("Caught panic: %v", params)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
 	// register swagger routes
 	router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
 
 	// register web routes
 	router.ServeFiles("/web/*filepath", http.Dir("web"))
 
-	// initialize places
+	/*// initialize places
 	p, err := initPlaces()
 	if err != nil {
 		return err
@@ -114,7 +118,7 @@ func (app *App) Initialize() error {
 
 	// register places routes
 	internal.NewPlacesAPI(p).RegisterRoutes(router)
-
+	*/
 	// version
 	router.GET("/version", getVersion)
 
