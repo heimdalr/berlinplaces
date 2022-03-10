@@ -199,16 +199,17 @@ type Places struct {
 	// a list of streets and locations (needed for completion)
 	streetsAndLocations []*place
 
-	// counts
-	streetCount      int
-	locationCount    int
-	houseNumberCount int
-
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
 
 	// cache for longer prefixes and prefixes with typo
 	cache *ristretto.Cache
+
+	// counts
+	streetCount      int
+	locationCount    int
+	houseNumberCount int
+	prefixCount      int
 
 	// average lookup time
 	m            sync.RWMutex
@@ -227,6 +228,17 @@ type Metrics struct {
 	CacheMetrics       *ristretto.Metrics
 	QueryCount         int64
 	AvgLookupTime      time.Duration
+}
+
+func (m Metrics) MarshalJSON() ([]byte, error) {
+	type Alias Metrics
+	return json.Marshal(&struct {
+		Alias
+		AvgLookupTime string
+	}{
+		AvgLookupTime: fmt.Sprintf("%s", m.AvgLookupTime),
+		Alias:         (Alias)(m),
+	})
 }
 
 func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
@@ -349,6 +361,7 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 
 	// compute placesMap
 	places.computePrefixMap()
+	places.prefixCount = len(places.prefixMap)
 
 	// initialize cache
 	places.cache, err = ristretto.NewCache(&ristretto.Config{
@@ -488,7 +501,6 @@ func (bp *Places) computePrefixMap() {
 func (bp *Places) Metrics() Metrics {
 	bp.m.RLock()
 	defer bp.m.RUnlock()
-	avgLookupTime := bp.avgQueryTime
 	return Metrics{
 		MaxPrefixLength:    bp.maxPrefixLength,
 		MinCompletionCount: bp.minCompletionCount,
@@ -496,14 +508,14 @@ func (bp *Places) Metrics() Metrics {
 		StreetCount:        bp.streetCount,
 		LocationCount:      bp.locationCount,
 		HouseNumberCount:   bp.houseNumberCount,
-		PrefixCount:        len(bp.prefixMap),
+		PrefixCount:        bp.prefixCount,
 		CacheMetrics:       bp.cache.Metrics,
-		AvgLookupTime:      avgLookupTime,
+		AvgLookupTime:      bp.avgQueryTime,
 		QueryCount:         bp.queryCount,
 	}
 }
 
-func (bp *Places) updateQueryStats(duration time.Duration) {
+func (bp *Places) updateMetrics(duration time.Duration) {
 	bp.m.Lock()
 	defer bp.m.Unlock()
 	bp.queryCount += 1
@@ -517,7 +529,7 @@ func (bp *Places) updateQueryStats(duration time.Duration) {
 func (bp *Places) GetCompletions(ctx context.Context, input string) []*result {
 	start := time.Now()
 	r := bp.getCompletions(ctx, input)
-	go bp.updateQueryStats(time.Since(start))
+	go bp.updateMetrics(time.Since(start))
 	return r
 }
 
@@ -606,7 +618,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 func (bp *Places) GetPlace(ctx context.Context, placeID int, houseNumber string) *place {
 	start := time.Now()
 	p := bp.getPlace(ctx, placeID, houseNumber)
-	go bp.updateQueryStats(time.Since(start))
+	go bp.updateMetrics(time.Since(start))
 	return p
 }
 

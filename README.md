@@ -18,7 +18,7 @@ good "hit rate" (e.g. compensates typos), and is slim and easy in terms of deplo
 Thus here it is, berlinplaces is:
 
 - free: it's here and OSS
-- [latency](#latency): basic tests show ~200µs without typos and ~12ms with early typos (if completed first time)
+- latency: basic tests show ~200µs without typos and ~12ms with early typos (if completed first time)
 - hit rate: berlinplaces uses lookup tables for speed and Levenshtein for typos
 - slim and easy: 25MB Docker image (incl. REST-server, OSM-data, swagger-docs and example website) 
 
@@ -92,6 +92,7 @@ The repository at hand contains mangled OSM data for Berlin (`_data/*.csv`).
 
 See [`_data/README.md`](_data/README.md) for how to generate those CSV files.  
 
+<!--
 ## Latency
 
 In the following we look at different lookup latency based on:
@@ -107,29 +108,28 @@ Each of the following tests was thereby started with an empty cache.
 
 ### Without Typos
 
-Autocompleting on "oranienburger straße":
+Autocompleting on "oranienburgerstraße":
 
 ~~~~
-[GIN] | 200 | 484.152µs | GET "/api/?text=o"
-[GIN] | 200 | 215.291µs | GET "/api/?text=or"
-[GIN] | 200 |  218.64µs | GET "/api/?text=ora"
-[GIN] | 200 | 156.601µs | GET "/api/?text=oran"
-[GIN] | 200 | 147.172µs | GET "/api/?text=orani"
-[GIN] | 200 | 305.857µs | GET "/api/?text=oranie"
-[GIN] | 200 | 202.536µs | GET "/api/?text=oranien" --> visible
-[GIN] | 200 | 270.033µs | GET "/api/?text=oranienb"
-[GIN] | 200 | 170.817µs | GET "/api/?text=oranienbu"
-[GIN] | 200 | 188.221µs | GET "/api/?text=oranienbur"
-[GIN] | 200 | 274.064µs | GET "/api/?text=oranienburg"
-[GIN] | 200 | 220.231µs | GET "/api/?text=oranienburge"
-[GIN] | 200 | 220.364µs | GET "/api/?text=oranienburger"
-[GIN] | 200 | 148.976µs | GET "/api/?text=oranienburger%20"
-[GIN] | 200 | 151.191µs | GET "/api/?text=oranienburger%20s" --> at top
-[GIN] | 200 |  200.57µs | GET "/api/?text=oranienburger%20st"
-[GIN] | 200 | 292.231µs | GET "/api/?text=oranienburger%20sta"
-[GIN] | 200 | 190.156µs | GET "/api/?text=oranienburger%20star"
-[GIN] | 200 |  222.93µs | GET "/api/?text=oranienburger%20star%C3%9F"
-[GIN] | 200 | 184.946µs | GET "/api/?text=oranienburger%20star%C3%9Fe"
+[GIN] | 200 | 451.966µs | GET "/api/complete?text=o"
+[GIN] | 200 | 294.185µs | GET "/api/complete?text=or"
+[GIN] | 200 | 218.059µs | GET "/api/complete?text=ora"
+[GIN] | 200 | 165.204µs | GET "/api/complete?text=oran"
+[GIN] | 200 | 159.364µs | GET "/api/complete?text=orani"
+[GIN] | 200 | 226.237µs | GET "/api/complete?text=oranie"
+[GIN] | 200 | 130.319µs | GET "/api/complete?text=oranien"
+[GIN] | 200 | 182.936µs | GET "/api/complete?text=oranienb"
+[GIN] | 200 | 600.928µs | GET "/api/complete?text=oranienbu"
+[GIN] | 200 | 140.496µs | GET "/api/complete?text=oranienbur"
+[GIN] | 200 | 203.542µs | GET "/api/complete?text=oranienburg"
+[GIN] | 200 | 205.985µs | GET "/api/complete?text=oranienburge"
+[GIN] | 200 | 130.145µs | GET "/api/complete?text=oranienburger"
+[GIN] | 200 |  191.65µs | GET "/api/complete?text=oranienburgers"
+[GIN] | 200 | 154.832µs | GET "/api/complete?text=oranienburgerst"
+[GIN] | 200 | 129.335µs | GET "/api/complete?text=oranienburgerstr"
+[GIN] | 200 |  262.72µs | GET "/api/complete?text=oranienburgerstra"
+[GIN] | 200 | 121.913µs | GET "/api/complete?text=oranienburgerstra%C3%9F"
+[GIN] | 200 | 147.085µs | GET "/api/complete?text=oranienburgerstra%C3%9Fe"
 ~~~~
 
 The average response time over all 20 calls (one for each character typed) is ~220µs. 
@@ -214,3 +214,4 @@ response time over all 18 calls is in this case ~210µs (essentially the same as
 The correct "Oranienburger Straße" is suggested after typing "oranien" and at the top of the suggestion list after
 typing "oranienurgerst".
 
+-->
