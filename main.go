@@ -113,7 +113,7 @@ func (app *App) Initialize() error {
 		return err
 	}
 	// register places routes
-	internal.NewBerlinPlacesAPI(berlinPlaces).RegisterRoutes(router.Group("/api"))
+	internal.NewPlacesAPI(berlinPlaces).RegisterRoutes(router.Group("/api"))
 
 	// version
 	router.GET("/version", func(c *gin.Context) {

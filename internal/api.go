@@ -9,26 +9,26 @@ import (
 	"time"
 )
 
-type BerlinPlacesAPI struct {
-	berlinPlaces *places.Places
+type PlacesAPI struct {
+	places *places.Places
 }
 
-// NewBerlinPlacesAPI initializes the BerlinPlacesAPI.
-func NewBerlinPlacesAPI(berlinPlaces *places.Places) BerlinPlacesAPI {
-	return BerlinPlacesAPI{
-		berlinPlaces: berlinPlaces,
+// NewPlacesAPI initializes the PlacesAPI.
+func NewPlacesAPI(berlinPlaces *places.Places) PlacesAPI {
+	return PlacesAPI{
+		places: berlinPlaces,
 	}
 }
 
-// RegisterRoutes registers BerlinPlacesAPI routes.
-func (bpa BerlinPlacesAPI) RegisterRoutes(router *gin.RouterGroup) {
-	router.GET("/complete/", bpa.getCompletions)
-	router.GET("/complete", bpa.getCompletions)
-	router.GET("/place/:placeID/", bpa.getPlace)
-	router.GET("/place/:placeID", bpa.getPlace)
+// RegisterRoutes registers PlacesAPI routes.
+func (api PlacesAPI) RegisterRoutes(router *gin.RouterGroup) {
+	router.GET("/complete/", api.getCompletions)
+	router.GET("/complete", api.getCompletions)
+	router.GET("/place/:placeID/", api.getPlace)
+	router.GET("/place/:placeID", api.getPlace)
 }
 
-func (bpa BerlinPlacesAPI) getCompletions(c *gin.Context) {
+func (api PlacesAPI) getCompletions(c *gin.Context) {
 
 	// timeout in seconds for calling geoapify
 	const timeout = 5
@@ -45,13 +45,13 @@ func (bpa BerlinPlacesAPI) getCompletions(c *gin.Context) {
 	defer cancel()
 
 	// query the geocoder
-	results := bpa.berlinPlaces.GetCompletions(ctx, text)
+	results := api.places.GetCompletions(ctx, text)
 
 	// return (i.e. forward) the response
 	c.JSON(http.StatusOK, results)
 }
 
-func (bpa BerlinPlacesAPI) getPlace(c *gin.Context) {
+func (api PlacesAPI) getPlace(c *gin.Context) {
 
 	// timeout in seconds for calling geoapify
 	const timeout = 5
@@ -79,7 +79,7 @@ func (bpa BerlinPlacesAPI) getPlace(c *gin.Context) {
 	defer cancel()
 
 	// query the geocoder
-	p := bpa.berlinPlaces.GetPlace(ctx, placeID, houseNumber)
+	p := api.places.GetPlace(ctx, placeID, houseNumber)
 	if p == nil {
 		c.Status(http.StatusNotFound)
 		return
