@@ -6,22 +6,42 @@ info:
     **autocomplete** and **geocode** locations (i.e. bars, pubs, hotels), streets (i.e. street names) and buildings 
     (i.e. housenumbers in streets) (see [example](/web))
 tags:
-  - name: complete
-  - name: place
+  - name: version
+  - name: places
 paths:
 
-  /api/complete:
+  /version:
     get:
       tags:
-        - complete
-      summary: get completions
-      description: get completions
+        - version
+      summary: get version info
+      description: get version info
+      responses:
+        '200':
+          description: OK (success)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/version'
+              example:
+                Version: 0.3.0
+                Hash: 8e7632a88eb9c1c51290fc52d3b06473fcfb20d8
+        '400':
+          description: BadRequest - missing query parameter text
+        '500':
+          description: InternalServerError
+  /places:
+    get:
+      tags:
+        - places
+      summary: get matching places
+      description: get matching places
       parameters:
         - in: query
           name: text
           schema:
             type: string
-          description: the text to look up
+          description: the text to match
           example:
             Tiergartenq
       responses:
@@ -63,12 +83,12 @@ paths:
           description: BadRequest - missing query parameter text
         '500':
           description: InternalServerError
-  /api/place/{id}:
+  /places/{id}:
     get:
       tags:
-        - place
-      summary: get a place
-      description: get a place
+        - places
+      summary: get a single place
+      description: get a single place
       parameters:
         - in: path
           required: true
@@ -114,6 +134,16 @@ paths:
 # components
 components:
   schemas:
+    version:
+      type: object
+      required:
+        - Version
+        - Hash
+      properties:
+        Version:
+          type: string
+        Hash:
+          type: string
     completionResult:
       type: object
       properties:

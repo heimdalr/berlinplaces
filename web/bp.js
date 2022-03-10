@@ -113,7 +113,7 @@ const myBloodhoundConfiguration = new Bloodhound({
 
     // the remote configuration
     remote: {
-        url: 'http://localhost:8080/api/complete?text=%QUERY',
+        url: 'http://localhost:8080/places?text=%QUERY',
         wildcard: '%QUERY',
         rateLimitWait: 10,
 
@@ -193,7 +193,7 @@ const simpleInputKeypressHandler = function (e) {
         const houseNumber = newValue.substr(completedValue.name.length).trim()
 
         // queries for a house number given the id of a street
-        const url = 'http://localhost:8080/api/place/' + completedValue.id + '?' + new URLSearchParams({'houseNumber': houseNumber});
+        const url = 'http://localhost:8080/places/' + completedValue.id + '?' + new URLSearchParams({'houseNumber': houseNumber});
         fetch(url)
             .then(response => {
                 if (!response.ok) {

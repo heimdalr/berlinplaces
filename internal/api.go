@@ -22,12 +22,12 @@ func NewPlacesAPI(p *places.Places) PlacesAPI {
 
 // RegisterRoutes registers PlacesAPI routes.
 func (api PlacesAPI) RegisterRoutes(router *httprouter.Router) {
-	router.GET("/api/complete/", api.getCompletions)
-	router.GET("/api/complete", api.getCompletions)
-	router.GET("/api/place/:placeID/", api.getPlace)
-	router.GET("/api/place/:placeID", api.getPlace)
-	router.GET("/api/metrics/", api.getMetrics)
-	router.GET("/api/metrics", api.getMetrics)
+	router.GET("/places/", api.getCompletions)
+	router.GET("/places", api.getCompletions)
+	router.GET("/places/:placeID/", api.getPlace)
+	router.GET("/places/:placeID", api.getPlace)
+	router.GET("/metrics/", api.getMetrics)
+	router.GET("/metrics", api.getMetrics)
 }
 
 func (api PlacesAPI) getCompletions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
