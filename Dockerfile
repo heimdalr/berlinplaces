@@ -65,8 +65,7 @@ COPY _data/housenumbers.csv ./_data/housenumbers.csv
 # use api user
 USER api:api
 
-#ENV BP_CSV="berlin.csv"
-#ENV BP_PORT=8080
-ENV BP_MODE="release"
+#ENV PLACES_PORT=8080
+ENV PLACES_MODE="release"
 
 CMD [ "/places/places" ]

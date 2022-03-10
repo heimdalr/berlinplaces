@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/heimdalr/berlinplaces/internal"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+	"github.com/urfave/negroni"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,7 +21,7 @@ import (
 	"time"
 )
 
-const viperEnvPrefix = "BP"
+const viperEnvPrefix = "PLACES"
 
 var buildVersion = "to be set by linker"
 var buildGitHash = "to be set by linker"
@@ -86,9 +89,10 @@ func viperSetup() {
 // Initialize the application.
 func (app *App) Initialize() error {
 
-	// initialize a router.
+	// initialize a router
 	router := httprouter.New()
 
+	// our panic handler
 	router.PanicHandler = func(w http.ResponseWriter, r *http.Request, params interface{}) {
 		log.Error().Msgf("Caught panic: %v", params)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -100,7 +104,7 @@ func (app *App) Initialize() error {
 	// register web routes
 	router.ServeFiles("/web/*filepath", http.Dir("web"))
 
-	/*// initialize places
+	// initialize places
 	p, err := initPlaces()
 	if err != nil {
 		return err
@@ -118,7 +122,7 @@ func (app *App) Initialize() error {
 
 	// register places routes
 	internal.NewPlacesAPI(p).RegisterRoutes(router)
-	*/
+
 	// version
 	router.GET("/version", getVersion)
 
@@ -127,10 +131,13 @@ func (app *App) Initialize() error {
 		http.Redirect(w, r, "/web/", 301)
 	})
 
+	// wrap the router into a logging middleware
+	lmw := loggerMiddleware{router}
+
 	// setup HTTP server
 	app.Server = http.Server{
 		Addr:           fmt.Sprintf(":%s", viper.GetString("PORT")),
-		Handler:        router,
+		Handler:        lmw,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -231,4 +238,26 @@ func getVersion(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	if err != nil {
 		panic(fmt.Errorf("failed to write response body: %w", err))
 	}
+}
+
+// loggerMiddleware a type to implement our logging middleware (around the router).
+type loggerMiddleware struct {
+	handler http.Handler
+}
+
+// ServeHTTP implements the Handler interface for our logging middleware.
+func (lmw loggerMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	t := time.Now()
+	url := *req.URL
+	rw := negroni.NewResponseWriter(w)
+	lmw.handler.ServeHTTP(rw, req)
+	ip, _, _ := net.SplitHostPort(req.RemoteAddr)
+	log.Info().
+		Str("remote", ip).
+		Str("method", req.Method).
+		Str("uri", url.RequestURI()).
+		Int64("µs", time.Since(t).Microseconds()).
+		Int("status", rw.Status()).
+		Int("size", rw.Size()).
+		Msg("request")
 }
