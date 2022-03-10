@@ -214,7 +214,7 @@ func initPlaces() (*places.Places, error) {
 		_ = locationsFile.Close()
 	}()
 
-	// open the berlin places csv
+	// open the housnumbers CSV
 	housnumbersFile, errHNF := os.Open(viper.GetString("HOUSENUMBERS_CSV"))
 	if errHNF != nil {
 		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errHNF)

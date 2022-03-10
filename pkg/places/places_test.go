@@ -29,7 +29,7 @@ street_id,housenumber,postcode,lat,lon
 1,1,12524,52.4127212,13.5714066
 `
 
-	berlinPlaces, err := places.NewPlaces(
+	p, err := places.NewPlaces(
 		strings.NewReader(districtsCSV),
 		strings.NewReader(streetsCSV),
 		strings.NewReader(locationsCSV),
@@ -69,7 +69,7 @@ street_id,housenumber,postcode,lat,lon
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := berlinPlaces.GetCompletions(context.Background(), tt.text)
+			r := p.GetCompletions(context.Background(), tt.text)
 			rLength := len(r)
 			if rLength < 1 {
 				t.Errorf("got %d, want > 0", rLength)

@@ -14,9 +14,9 @@ type PlacesAPI struct {
 }
 
 // NewPlacesAPI initializes the PlacesAPI.
-func NewPlacesAPI(berlinPlaces *places.Places) PlacesAPI {
+func NewPlacesAPI(p *places.Places) PlacesAPI {
 	return PlacesAPI{
-		places: berlinPlaces,
+		places: p,
 	}
 }
 

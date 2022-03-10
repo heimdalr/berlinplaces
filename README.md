@@ -24,7 +24,7 @@ Thus here it is, berlinplaces is:
 
 The demo (see below) looks like:
 
-[![demo](berlinplaces.png)](berlinplaces.gif)
+[![demo](places.png)](places.gif)
   
 ## Getting Started
 
@@ -45,7 +45,7 @@ and surf to:
 alternatively run (e.g.): 
 
 ~~~~bash
-curl --request GET --url 'http://localhost:8080/api/complete?text=Oranienbur' | jq
+curl --request GET --url 'http://localhost:8080/api/complete?text=Tiergartenq' | jq
 ~~~~
 
 which will result in something like:
@@ -53,40 +53,34 @@ which will result in something like:
 ~~~~json
 [
   {
-    "distance": 1,
-    "percentage": 0,
+    "distance": 4,
     "place": {
-      "placeID": 715227,
-      "parentPlaceID": 732833,
-      "class": "highway",
-      "type": "secondary",
-      "name": "Oranienburger Straße",
-      "boundary": "Wittenau",
-      "postcode": "13437",
-      "city": "Berlin",
-      "lat": 52.5933948,
-      "lon": 13.3335015,
-      "relevance": 0,
-      "simpleName": "oranienburgerstraße"
+      "id": 10561,
+      "class": "street",
+      "name": "Tiergartenufer",
+      "postcode": "10623",
+      "district": "Charlottenburg-Wilmersdorf",
+      "length": 236,
+      "lat": 52.513022715666686,
+      "lon": 13.333934396722077,
+      "relevance": 0
     }
   },
   {
-    "distance": 3,
-    "percentage": 0,
+    "distance": 5,
     "place": {
-      "placeID": 523006,
-      "parentPlaceID": 465333,
-      "class": "highway",
-      "type": "unclassified",
-      "name": "Brandenburger Straße",
-      "boundary": "Wedding",
-      "neighbourhood": "Cité Joffre",
-      "postcode": "13405",
-      "city": "Berlin",
-      "lat": 52.5555049,
-      "lon": 13.3115449,
-      "relevance": 0,
-      "simpleName": "brandenburgerstraße"
+      "id": 13969,
+      "class": "location",
+      "type": "restaurant",
+      "name": "Tiergartenquelle",
+      "street": "Bachstraße",
+      "streetID": 1012,
+      "houseNumber": "6",
+      "postcode": "10555",
+      "district": "Mitte",
+      "lat": 52.5151591,
+      "lon": 13.3367789,
+      "relevance": 0
     }
   }
 ]
@@ -94,9 +88,9 @@ which will result in something like:
 
 ## OSM Data
 
-The repository at hand contains prepared OSM data ([`berlin.csv`](berlin.csv)). 
+The repository at hand contains mangled OSM data for Berlin (`_data/*.csv`). 
 
-See [`_data/README.md`](_data/README.md) for how to generate this CSV file.  
+See [`_data/README.md`](_data/README.md) for how to generate those CSV files.  
 
 ## Latency
 

@@ -65,7 +65,7 @@ start_nominatim:
         -e REPLICATION_URL=https://download.geofabrik.de/europe/germany/berlin-updates/ \
         -e IMPORT_WIKIPEDIA=false \
         -e FREEZE=true \
-        -v $(MAKEFILE_DIR)/_data/.nominatim-data:/var/lib/postgresql/12/main \
+        -v $(MAKEFILE_DIR)/_data/nominatim/.nominatim-data:/var/lib/postgresql/12/main \
         -p 8081:8080 \
         -p 5432:5432 \
         --name nominatim \

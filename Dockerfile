@@ -23,7 +23,7 @@ RUN export BUILD_GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo '0') && \
     export BUILD_VERSION=$(echo $GIT_TAG | grep -P -o '(?<=v)[0-9]+.[0-9]+.[0-9]') && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags "-X main.buildVersion=$BUILD_VERSION -X main.buildGitHash=$BUILD_GIT_HASH" \
-    -o berlinplaces \
+    -o places \
     .
 
 # create api user
@@ -49,10 +49,10 @@ COPY --from=buildstage /etc/passwd /etc/passwd
 COPY --from=buildstage /etc/group /etc/group
 
 
-WORKDIR /berlinplaces
+WORKDIR /places
 
 # copy server
-COPY --from=buildstage /builddir/berlinplaces ./
+COPY --from=buildstage /builddir/places ./
 
 # copy statics
 COPY swagger/ ./swagger/
@@ -69,4 +69,4 @@ USER api:api
 #ENV BP_PORT=8080
 ENV BP_MODE="release"
 
-CMD [ "/berlinplaces/berlinplaces" ]
+CMD [ "/places/places" ]
