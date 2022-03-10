@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
 CONTAINER_NAME=nominatim
-NOMINATIM_DATA=${PWD}/.nominatim-data
+NOMINATIM_DIR=${PWD}/nominatim
+NOMINATIM_DATA=${NOMINATIM_DIR}/.nominatim-data
 CSV_FILE_DISTRICTS=${PWD}/districts.csv
 CSV_FILE_STREETS=${PWD}/streets.csv
 CSV_FILE_LOCATIONS=${PWD}/locations.csv
 CSV_FILE_HOUSENUMBERS=${PWD}/housenumbers.csv
 SQL_FILE=${PWD}/extractCSV.sql
 CONTAINER_CHECK_URL=http://localhost:8081/search.php?q=Oranienburger
+
+mkdir -p "${NOMINATIM_DIR}"
 
 # if Nominatim container is not running
 if ! docker ps --format '{{.Names}}' | grep -w ${CONTAINER_NAME} > /dev/null; then
