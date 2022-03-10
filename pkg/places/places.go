@@ -83,10 +83,6 @@ type place struct {
 	locations    []*place // in case of a street, this links (down) to associated locations
 }
 
-func osmURL(lat, lon float64) string {
-	return fmt.Sprintf("https://www.openstreetmap.org/?mlat=%f&mlon=%f#map=18/%f/%f", lat, lon, lat, lon)
-}
-
 func (p *place) MarshalJSON() ([]byte, error) {
 	if p.Class == streetClass {
 		return json.Marshal(&struct {
@@ -98,7 +94,6 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			Length    int32      `json:"length,omitempty"`
 			Lat       float64    `json:"lat"`
 			Lon       float64    `json:"lon"`
-			OSM       string     `json:"osm"`
 			Relevance uint64     `json:"relevance"`
 		}{
 			ID:       p.ID,
@@ -109,7 +104,6 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			Length:   p.Length,
 			Lat:      p.Lat,
 			Lon:      p.Lon,
-			OSM:      osmURL(p.Lat, p.Lon),
 		})
 	}
 	if p.Class == locationClass {
@@ -125,7 +119,6 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District    string     `json:"district"`
 			Lat         float64    `json:"lat"`
 			Lon         float64    `json:"lon"`
-			OSM         string     `json:"osm"`
 			Relevance   uint64     `json:"relevance"`
 		}{
 			ID:          p.ID,
@@ -139,7 +132,6 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District:    p.District.District,
 			Lat:         p.Lat,
 			Lon:         p.Lon,
-			OSM:         osmURL(p.Lat, p.Lon),
 			Relevance:   p.Relevance,
 		})
 	}
@@ -154,7 +146,6 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District    string     `json:"district"`
 			Lat         float64    `json:"lat"`
 			Lon         float64    `json:"lon"`
-			OSM         string     `json:"osm"`
 			Relevance   uint64     `json:"relevance"`
 		}{
 			ID:          p.ID,
@@ -166,7 +157,6 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			District:    p.District.District,
 			Lat:         p.Lat,
 			Lon:         p.Lon,
-			OSM:         osmURL(p.Lat, p.Lon),
 			Relevance:   p.Relevance,
 		})
 	}

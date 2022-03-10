@@ -14,15 +14,16 @@ const showResult = function() {
         document.getElementById('result').innerHTML = '&nbsp;';
     } else {
         let str;
+        const osmURL =  'https://www.openstreetmap.org/?mlat=' + p.lat + '&mlon=' + p.lon + '#map=18/' + p.lat + '/' + p.lon
         switch (p.class) {
             case 'street':
-                str = p.name + ', ' + p.postcode + ', ' + p.district + ' (<a href="' + p.osm + '">osm</a>)'
+                str = p.name + ', ' + p.postcode + ', ' + p.district + ' (<a href="' + osmURL + '">osm</a>)'
                 break;
             case 'location':
-                str = p.name + ', ' + p.street + " " + p.houseNumber + ', ' + p.postcode + ', ' + p.district + ' (<a href="' + p.osm + '">osm</a>)'
+                str = p.name + ', ' + p.street + " " + p.houseNumber + ', ' + p.postcode + ', ' + p.district + ' (<a href="' + osmURL + '">osm</a>)'
                 break;
             default: // 'houseNumber'
-                str = p.street + " " + p.houseNumber + ', ' + p.postcode + ', ' + p.district + ' (<a href="' + p.osm + '">osm</a>)'
+                str = p.street + " " + p.houseNumber + ', ' + p.postcode + ', ' + p.district + ' (<a href="' + osmURL + '">osm</a>)'
         }
 
         document.getElementById('result').innerHTML = str;
