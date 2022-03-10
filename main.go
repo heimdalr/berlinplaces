@@ -2,17 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/dn365/gin-zerolog"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"github.com/heimdalr/berlinplaces/internal"
 	"github.com/heimdalr/berlinplaces/pkg/places"
+	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,9 +41,6 @@ func main() {
 	// Set the gin mode.
 	if viper.GetString("MODE") == "debug" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-		gin.DefaultWriter = ioutil.Discard
 	}
 
 	// ensure we have a valid config
@@ -101,16 +96,16 @@ func viperValidate() error {
 func (app *App) Initialize() error {
 
 	// initialize a router.
-	router := gin.Default()
+	router := httprouter.New()
 
 	// add a zerolog middleware.
-	router.Use(ginzerolog.Logger("gin"))
+	//router.Use(ginzerolog.Logger("gin"))
 
 	// register swagger routes
-	router.StaticFS("swagger/", http.Dir("swagger"))
+	router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
 
 	// register web routes
-	router.StaticFS("web/", http.Dir("web"))
+	router.ServeFiles("/web/*filepath", http.Dir("web"))
 
 	// initialize places
 	p, err := initPlaces()
@@ -129,28 +124,18 @@ func (app *App) Initialize() error {
 		Msg("initialized places")
 
 	// register places routes
-	internal.NewPlacesAPI(p).RegisterRoutes(router.Group("/api"))
+	internal.NewPlacesAPI(p).RegisterRoutes(router)
 
 	// version
-	router.GET("/version", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"version": buildVersion,
-			"hash":    buildGitHash,
-		})
-	})
-
-	// metrics
-	router.GET("/metrics", func(c *gin.Context) {
-		c.JSON(http.StatusOK, p.Metrics())
-	})
+	router.GET("/version", getVersion)
 
 	// redirect / to /web
-	router.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/web")
+	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		http.Redirect(w, r, "/web/", 301)
 	})
 
 	// use a CORS middleware (allow all).
-	router.Use(cors.Default())
+	//router.Use(cors.Default())
 
 	// setup HTTP server
 	app.Server = http.Server{
@@ -238,4 +223,18 @@ func initPlaces() (*places.Places, error) {
 	}
 
 	return p, nil
+}
+
+// getVersion is the handler for /version
+func getVersion(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	versionInfo := struct {
+		Version string
+		Hash    string
+	}{buildVersion, buildGitHash}
+	j, err := json.Marshal(versionInfo)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(j)
 }

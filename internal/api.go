@@ -2,11 +2,11 @@ package internal
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
+	"encoding/json"
 	"github.com/heimdalr/berlinplaces/pkg/places"
+	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 type PlacesAPI struct {
@@ -21,70 +21,80 @@ func NewPlacesAPI(p *places.Places) PlacesAPI {
 }
 
 // RegisterRoutes registers PlacesAPI routes.
-func (api PlacesAPI) RegisterRoutes(router *gin.RouterGroup) {
-	router.GET("/complete/", api.getCompletions)
-	router.GET("/complete", api.getCompletions)
-	router.GET("/place/:placeID/", api.getPlace)
-	router.GET("/place/:placeID", api.getPlace)
+func (api PlacesAPI) RegisterRoutes(router *httprouter.Router) {
+	router.GET("/api/complete/", api.getCompletions)
+	router.GET("/api/complete", api.getCompletions)
+	router.GET("/api/place/:placeID/", api.getPlace)
+	router.GET("/api/place/:placeID", api.getPlace)
+	router.GET("/api/metrics/", api.getMetrics)
+	router.GET("/api/metrics", api.getMetrics)
 }
 
-func (api PlacesAPI) getCompletions(c *gin.Context) {
-
-	// timeout in seconds for calling geoapify
-	const timeout = 5
+func (api PlacesAPI) getCompletions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	// get the search text from the request
-	text := c.Query("text")
+	queryValues := r.URL.Query()
+	text := queryValues.Get("text")
 	if text == "" {
-		c.Status(http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	// derive a timeout context
-	ctx, cancel := context.WithTimeout(c, timeout*time.Second)
-	defer cancel()
+	// get completions
+	results := api.places.GetCompletions(context.Background(), text)
 
-	// query the geocoder
-	results := api.places.GetCompletions(ctx, text)
-
-	// return (i.e. forward) the response
-	c.JSON(http.StatusOK, results)
+	// encode completions
+	j, err := json.Marshal(results)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(j)
 }
 
-func (api PlacesAPI) getPlace(c *gin.Context) {
-
-	// timeout in seconds for calling geoapify
-	const timeout = 5
+func (api PlacesAPI) getPlace(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	// parse the place ID
-	placeIDStr := c.Param("placeID")
+	placeIDStr := ps.ByName("placeID")
 	var placeID int
 	if placeIDStr != "" {
 		id, err := strconv.Atoi(placeIDStr)
 		if err != nil {
-			c.Status(http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		placeID = id
 	} else {
-		c.Status(http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	// https://www.google.com/maps/place/52%C2%B045'92.1%22N+13%C2%B019'21.1%22E/@52.4592118,13.3222465,17.75z/
+
 	// get the search houseNumber from the request (if any)
-	houseNumber := c.Query("houseNumber")
+	queryValues := r.URL.Query()
+	houseNumber := queryValues.Get("houseNumber")
 
-	// derive a timeout context
-	ctx, cancel := context.WithTimeout(c, timeout*time.Second)
-	defer cancel()
-
-	// query the geocoder
-	p := api.places.GetPlace(ctx, placeID, houseNumber)
+	// get the place
+	p := api.places.GetPlace(context.Background(), placeID, houseNumber)
 	if p == nil {
-		c.Status(http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	// return (i.e. forward) the response
-	c.JSON(http.StatusOK, p)
+	// encode place
+	j, err := json.Marshal(p)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(j)
+}
+
+func (api PlacesAPI) getMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	m := api.places.Metrics()
+	j, err := json.Marshal(m)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(j)
 }
