@@ -217,13 +217,16 @@ type Places struct {
 }
 
 type Metrics struct {
-	StreetCount      int
-	LocationCount    int
-	HouseNumberCount int
-	PrefixCount      int
-	CacheMetrics     *ristretto.Metrics
-	QueryCount       int64
-	AvgLookupTime    time.Duration
+	MaxPrefixLength    int
+	MinCompletionCount int
+	LevMinimum         int
+	StreetCount        int
+	LocationCount      int
+	HouseNumberCount   int
+	PrefixCount        int
+	CacheMetrics       *ristretto.Metrics
+	QueryCount         int64
+	AvgLookupTime      time.Duration
 }
 
 func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
@@ -487,13 +490,16 @@ func (bp *Places) Metrics() Metrics {
 	defer bp.m.RUnlock()
 	avgLookupTime := bp.avgQueryTime
 	return Metrics{
-		StreetCount:      bp.streetCount,
-		LocationCount:    bp.locationCount,
-		HouseNumberCount: bp.houseNumberCount,
-		PrefixCount:      len(bp.prefixMap),
-		CacheMetrics:     bp.cache.Metrics,
-		AvgLookupTime:    avgLookupTime,
-		QueryCount:       bp.queryCount,
+		MaxPrefixLength:    bp.maxPrefixLength,
+		MinCompletionCount: bp.minCompletionCount,
+		LevMinimum:         bp.minCompletionCount,
+		StreetCount:        bp.streetCount,
+		LocationCount:      bp.locationCount,
+		HouseNumberCount:   bp.houseNumberCount,
+		PrefixCount:        len(bp.prefixMap),
+		CacheMetrics:       bp.cache.Metrics,
+		AvgLookupTime:      avgLookupTime,
+		QueryCount:         bp.queryCount,
 	}
 }
 

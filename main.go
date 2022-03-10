@@ -80,6 +80,11 @@ func viperSetup() {
 	// default values
 	viper.SetDefault("MODE", "debug") // debug->debug or anything for release
 	viper.SetDefault("PORT", "8080")
+
+	viper.SetDefault("MAX_PREFIX_LENGTH", 6)
+	viper.SetDefault("MIN_COMPLETION_COUNT", 6)
+	viper.SetDefault("LEV_MINIMUM", 0)
+
 	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root
 	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
 	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
@@ -108,20 +113,31 @@ func (app *App) Initialize() error {
 	router.StaticFS("web/", http.Dir("web"))
 
 	// initialize places
-	berlinPlaces, err := initPlaces()
+	p, err := initPlaces()
 	if err != nil {
 		return err
 	}
+	m := p.Metrics()
+	log.Debug().
+		Int("maxPrefixLength", m.MaxPrefixLength).
+		Int("minCompletionCount", m.MinCompletionCount).
+		Int("levMinimum", m.LevMinimum).
+		Int("streetCount", m.StreetCount).
+		Int("locationCount", m.LocationCount).
+		Int("houseNumberCount", m.HouseNumberCount).
+		Int("prefixCount", m.PrefixCount).
+		Msg("initialized places")
+
 	// register places routes
-	internal.NewPlacesAPI(berlinPlaces).RegisterRoutes(router.Group("/api"))
+	internal.NewPlacesAPI(p).RegisterRoutes(router.Group("/api"))
 
 	// version
 	router.GET("/version", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"version":          buildVersion,
 			"hash":             buildGitHash,
-			"queryCount":       berlinPlaces.Metrics().QueryCount,
-			"avgQueryDuration": fmt.Sprintf("%dµs", berlinPlaces.Metrics().AvgLookupTime.Microseconds())})
+			"queryCount":       p.Metrics().QueryCount,
+			"avgQueryDuration": fmt.Sprintf("%dµs", p.Metrics().AvgLookupTime.Microseconds())})
 	})
 
 	// redirect / to /web
@@ -208,22 +224,14 @@ func initPlaces() (*places.Places, error) {
 	}()
 
 	// initialize places
-	maxPrefixLength := 6
-	minCompletionCount := 6
-	levMinimum := 0
-	berlinPlaces, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, housnumbersFile, maxPrefixLength, minCompletionCount, levMinimum)
-	if err != nil {
-		panic(fmt.Errorf("failed to initialize berlinPlaces: %w", err))
-	}
-	log.Debug().
-		Int("maxPrefixLength", maxPrefixLength).
-		Int("minCompletionCount", minCompletionCount).
-		Int("levMinimum", levMinimum).
-		Int("streetCount", berlinPlaces.Metrics().StreetCount).
-		Int("locationCount", berlinPlaces.Metrics().LocationCount).
-		Int("housenumberCount", berlinPlaces.Metrics().HouseNumberCount).
-		Int("prefixCount", berlinPlaces.Metrics().PrefixCount).
-		Msg("initialized places")
+	maxPrefixLength := viper.GetInt("MAX_PREFIX_LENGTH")
+	minCompletionCount := viper.GetInt("MIN_COMPLETION_COUNT")
+	levMinimum := viper.GetInt("LEV_MINIMUM")
 
-	return berlinPlaces, nil
+	p, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, housnumbersFile, maxPrefixLength, minCompletionCount, levMinimum)
+	if err != nil {
+		panic(fmt.Errorf("failed to initialize places: %w", err))
+	}
+
+	return p, nil
 }
