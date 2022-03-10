@@ -527,6 +527,8 @@ func (bp *Places) queryStreetsAndLocations(_ context.Context, input string) []*r
 	if hit {
 		if results, ok := cacheResults.([]*result); ok {
 			return results
+		} else {
+			panic("failed to cast cache results")
 		}
 	}
 
