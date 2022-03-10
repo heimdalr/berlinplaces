@@ -32,35 +32,33 @@ type App struct {
 // main function to boot up everything.
 func main() {
 
-	// Show version info.
-	log.Info().Str("version", buildVersion).Str("hash", buildGitHash).Msg("")
-
-	// Get Environment variables.
+	// get Environment variables
 	viperSetup()
 
-	// Set the gin mode.
+	// configure the logger
 	if viper.GetString("MODE") == "debug" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	// ensure we have a valid config
-	err := viperValidate()
-	if err != nil {
-		log.Fatal().Err(err).Msg("config validation failed")
-	}
+	// show version info
+	log.Info().Str("version", buildVersion).Str("hash", buildGitHash).Msg("app info")
 
+	// initialize the app
 	var app App
-	err = app.Initialize()
+	err := app.Initialize()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize app")
 	}
+
+	// run the app
 	app.Run()
 
-	// Wait for a interrupt.
+	// wait for an interrupt
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
+	// shutdown the app
 	app.Shutdown()
 }
 
@@ -68,7 +66,6 @@ func main() {
 func viperSetup() {
 
 	// bind env variables to viper keys
-
 	viper.SetEnvPrefix(viperEnvPrefix)
 	viper.AutomaticEnv()
 
@@ -83,13 +80,8 @@ func viperSetup() {
 	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root
 	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
 	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
-	viper.SetDefault("HOUSENUMBERS_CSV", "_data/housenumbers.csv")
+	viper.SetDefault("HOUSE_NUMBERS_CSV", "_data/housenumbers.csv")
 
-}
-
-// viperValidate ensure a valid configuration
-func viperValidate() error {
-	return nil
 }
 
 // Initialize the application.
@@ -97,9 +89,6 @@ func (app *App) Initialize() error {
 
 	// initialize a router.
 	router := httprouter.New()
-
-	// add a zerolog middleware.
-	//router.Use(ginzerolog.Logger("gin"))
 
 	// register swagger routes
 	router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
@@ -134,9 +123,6 @@ func (app *App) Initialize() error {
 		http.Redirect(w, r, "/web/", 301)
 	})
 
-	// use a CORS middleware (allow all).
-	//router.Use(cors.Default())
-
 	// setup HTTP server
 	app.Server = http.Server{
 		Addr:           fmt.Sprintf(":%s", viper.GetString("PORT")),
@@ -152,7 +138,7 @@ func (app *App) Initialize() error {
 // Run the application.
 func (app *App) Run() {
 
-	// Start the server in a goroutine (i.e. concurrently).
+	// start the server (in a goroutine)
 	go func() {
 		if err := app.Server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("server failed")
@@ -174,6 +160,7 @@ func (app *App) Shutdown() {
 	}
 }
 
+// initPlaces opens the necessary CSV files and initializes places.
 func initPlaces() (*places.Places, error) {
 
 	// open the districts CSV
@@ -203,13 +190,13 @@ func initPlaces() (*places.Places, error) {
 		_ = locationsFile.Close()
 	}()
 
-	// open the housnumbers CSV
-	housnumbersFile, errHNF := os.Open(viper.GetString("HOUSENUMBERS_CSV"))
+	// open the house numbers CSV
+	houseNumbersFile, errHNF := os.Open(viper.GetString("HOUSE_NUMBERS_CSV"))
 	if errHNF != nil {
 		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errHNF)
 	}
 	defer func() {
-		_ = housnumbersFile.Close()
+		_ = houseNumbersFile.Close()
 	}()
 
 	// initialize places
@@ -217,7 +204,7 @@ func initPlaces() (*places.Places, error) {
 	minCompletionCount := viper.GetInt("MIN_COMPLETION_COUNT")
 	levMinimum := viper.GetInt("LEV_MINIMUM")
 
-	p, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, housnumbersFile, maxPrefixLength, minCompletionCount, levMinimum)
+	p, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, houseNumbersFile, maxPrefixLength, minCompletionCount, levMinimum)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize places: %w", err))
 	}
@@ -225,7 +212,7 @@ func initPlaces() (*places.Places, error) {
 	return p, nil
 }
 
-// getVersion is the handler for /version
+// getVersion is the handler for the /version-endpoint.
 func getVersion(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	versionInfo := struct {
 		Version string `json:"version"`
