@@ -25,8 +25,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/version'
               example:
-                Version: 0.3.0
-                Hash: 8e7632a88eb9c1c51290fc52d3b06473fcfb20d8
+                version: 0.3.0
+                hash: 8e7632a88eb9c1c51290fc52d3b06473fcfb20d8
   /metrics:
     get:
       tags:
@@ -41,16 +41,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/metrics'
               example:
-                MaxPrefixLength: 6
-                MinCompletionCount: 6
-                LevMinimum: 0
-                StreetCount: 11913
-                LocationCount: 7027
-                HouseNumberCount: 403008
-                PrefixCount: 30731
-                CacheMetrics: null
-                QueryCount: 4
-                AvgLookupTime: 17242
+                maxPrefixLength: 6
+                minCompletionCount: 6
+                levMinimum: 0
+                streetCount: 11913
+                locationCount: 7027
+                houseNumberCount: 403008
+                prefixCount: 30731
+                cacheMetrics: null
+                queryCount: 4
+                avgLookupTime: 17242
   /places:
     get:
       tags:
@@ -158,54 +158,54 @@ components:
     version:
       type: object
       required:
-        - Version
-        - Hash
+        - version
+        - hash
       properties:
-        Version:
+        version:
           type: string
-        Hash:
+        hash:
           type: string
     metrics:
       type: object
       required:
-        - MaxPrefixLength
-        - MinCompletionCount
-        - LevMinimum
-        - StreetCount
-        - LocationCount
-        - HouseNumberCount
-        - PrefixCount
-        - CacheMetrics
-        - QueryCount
-        - AvgLookupTime
+        - maxPrefixLength
+        - minCompletionCount
+        - levMinimum
+        - streetCount
+        - locationCount
+        - houseNumberCount
+        - prefixCount
+        - cacheMetrics
+        - queryCount
+        - avgLookupTime
       properties:
-        MaxPrefixLength:
+        maxPrefixLength:
           type: number
           format: int32
-        MinCompletionCount:
+        minCompletionCount:
           type: number
           format: int32
-        LevMinimum:
+        levMinimum:
           type: number
           format: int32
-        StreetCount:
+        streetCount:
           type: number
           format: int32
-        LocationCount:
+        locationCount:
           type: number
           format: int32
-        HouseNumberCount:
+        houseNumberCount:
           type: number
           format: int32
-        PrefixCount:
+        prefixCount:
           type: number
           format: int32
-        CacheMetrics:
+        cacheMetrics:
           type: object
-        QueryCount:
+        queryCount:
           type: number
           format: int64
-        AvgLookupTime:
+        avgLookupTime:
           type: number
           format: int64
     completionResult:

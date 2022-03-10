@@ -228,8 +228,8 @@ func initPlaces() (*places.Places, error) {
 // getVersion is the handler for /version
 func getVersion(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	versionInfo := struct {
-		Version string
-		Hash    string
+		Version string `json:"version"`
+		Hash    string `json:"hash"`
 	}{buildVersion, buildGitHash}
 	j, err := json.Marshal(versionInfo)
 	if err != nil {

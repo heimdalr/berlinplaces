@@ -218,27 +218,16 @@ type Places struct {
 }
 
 type Metrics struct {
-	MaxPrefixLength    int
-	MinCompletionCount int
-	LevMinimum         int
-	StreetCount        int
-	LocationCount      int
-	HouseNumberCount   int
-	PrefixCount        int
-	CacheMetrics       *ristretto.Metrics
-	QueryCount         int64
-	AvgLookupTime      time.Duration
-}
-
-func (m Metrics) MarshalJSON() ([]byte, error) {
-	type Alias Metrics
-	return json.Marshal(&struct {
-		Alias
-		AvgLookupTime string
-	}{
-		AvgLookupTime: fmt.Sprint(m.AvgLookupTime),
-		Alias:         (Alias)(m),
-	})
+	MaxPrefixLength    int                `json:"maxPrefixLength"`
+	MinCompletionCount int                `json:"minCompletionCount"`
+	LevMinimum         int                `json:"levMinimum"`
+	StreetCount        int                `json:"streetCount"`
+	LocationCount      int                `json:"locationCount"`
+	HouseNumberCount   int                `json:"houseNumberCount"`
+	PrefixCount        int                `json:"prefixCount"`
+	CacheMetrics       *ristretto.Metrics `json:"cacheMetrics"`
+	QueryCount         int64              `json:"queryCount"`
+	AvgLookupTime      time.Duration      `json:"avgLookupTime"`
 }
 
 func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
