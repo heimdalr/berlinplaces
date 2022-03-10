@@ -7,6 +7,7 @@ info:
     (i.e. housenumbers in streets) (see [example](/web))
 tags:
   - name: version
+  - name: metrics
   - name: places
 paths:
 
@@ -26,10 +27,30 @@ paths:
               example:
                 Version: 0.3.0
                 Hash: 8e7632a88eb9c1c51290fc52d3b06473fcfb20d8
-        '400':
-          description: BadRequest - missing query parameter text
-        '500':
-          description: InternalServerError
+  /metrics:
+    get:
+      tags:
+        - metrics
+      summary: get metrics
+      description: get metrics
+      responses:
+        '200':
+          description: OK (success)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/metrics'
+              example:
+                MaxPrefixLength: 6
+                MinCompletionCount: 6
+                LevMinimum: 0
+                StreetCount: 11913
+                LocationCount: 7027
+                HouseNumberCount: 403008
+                PrefixCount: 30731
+                CacheMetrics: null
+                QueryCount: 4
+                AvgLookupTime: 17242
   /places:
     get:
       tags:
@@ -144,6 +165,49 @@ components:
           type: string
         Hash:
           type: string
+    metrics:
+      type: object
+      required:
+        - MaxPrefixLength
+        - MinCompletionCount
+        - LevMinimum
+        - StreetCount
+        - LocationCount
+        - HouseNumberCount
+        - PrefixCount
+        - CacheMetrics
+        - QueryCount
+        - AvgLookupTime
+      properties:
+        MaxPrefixLength:
+          type: number
+          format: int32
+        MinCompletionCount:
+          type: number
+          format: int32
+        LevMinimum:
+          type: number
+          format: int32
+        StreetCount:
+          type: number
+          format: int32
+        LocationCount:
+          type: number
+          format: int32
+        HouseNumberCount:
+          type: number
+          format: int32
+        PrefixCount:
+          type: number
+          format: int32
+        CacheMetrics:
+          type: object
+        QueryCount:
+          type: number
+          format: int64
+        AvgLookupTime:
+          type: number
+          format: int64
     completionResult:
       type: object
       properties:
