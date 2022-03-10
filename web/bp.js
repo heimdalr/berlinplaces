@@ -101,6 +101,7 @@ const switchToTypeahead = function () {
 
 // myBloodhoundConfiguration is the Bloodhound config.
 const myBloodhoundConfiguration = new Bloodhound({
+
     // what part of the results (returned from query) to consider in Bloodhound
     datumTokenizer: function(datum) {
         return Bloodhound.tokenizers.obj.whitespace(datum.place.name);
