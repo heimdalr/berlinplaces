@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/heimdalr/berlinplaces/internal"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
@@ -100,7 +101,7 @@ func (app *App) Initialize() error {
 	// register web routes
 	router.ServeFiles("/web/*filepath", http.Dir("web"))
 
-	/*// initialize places
+	// initialize places
 	p, err := initPlaces()
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func (app *App) Initialize() error {
 
 	// register places routes
 	internal.NewPlacesAPI(p).RegisterRoutes(router)
-	*/
+
 	// version
 	router.GET("/version", getVersion)
 
@@ -224,8 +225,11 @@ func getVersion(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	}{buildVersion, buildGitHash}
 	j, err := json.Marshal(versionInfo)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		panic(fmt.Errorf("failed to marshall version info: %w", err))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(j)
+	_, err = w.Write(j)
+	if err != nil {
+		panic(fmt.Errorf("failed to write response body: %w", err))
+	}
 }
