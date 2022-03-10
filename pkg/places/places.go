@@ -236,7 +236,7 @@ func (m Metrics) MarshalJSON() ([]byte, error) {
 		Alias
 		AvgLookupTime string
 	}{
-		AvgLookupTime: fmt.Sprintf("%s", m.AvgLookupTime),
+		AvgLookupTime: fmt.Sprint(m.AvgLookupTime),
 		Alias:         (Alias)(m),
 	})
 }
