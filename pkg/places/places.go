@@ -492,7 +492,7 @@ func (bp *Places) Metrics() Metrics {
 	return Metrics{
 		MaxPrefixLength:    bp.maxPrefixLength,
 		MinCompletionCount: bp.minCompletionCount,
-		LevMinimum:         bp.minCompletionCount,
+		LevMinimum:         bp.levMinimum,
 		StreetCount:        bp.streetCount,
 		LocationCount:      bp.locationCount,
 		HouseNumberCount:   bp.houseNumberCount,

@@ -57,7 +57,10 @@ COPY --from=buildstage /builddir/berlinplaces ./
 # copy statics
 COPY swagger/ ./swagger/
 COPY web/ ./web/
-COPY berlin.csv ./berlin.csv
+COPY _data/districts.csv ./_data/districts.csv
+COPY _data/streets.csv ./_data/streets.csv
+COPY _data/locations.csv ./_data/locations.csv
+COPY _data/housenumbers.csv ./_data/housenumbers.csv
 
 # use api user
 USER api:api

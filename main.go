@@ -118,7 +118,7 @@ func (app *App) Initialize() error {
 		return err
 	}
 	m := p.Metrics()
-	log.Debug().
+	log.Info().
 		Int("maxPrefixLength", m.MaxPrefixLength).
 		Int("minCompletionCount", m.MinCompletionCount).
 		Int("levMinimum", m.LevMinimum).

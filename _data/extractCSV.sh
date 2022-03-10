@@ -6,7 +6,7 @@ CSV_FILE_DISTRICTS=${PWD}/districts.csv
 CSV_FILE_STREETS=${PWD}/streets.csv
 CSV_FILE_LOCATIONS=${PWD}/locations.csv
 CSV_FILE_HOUSENUMBERS=${PWD}/housenumbers.csv
-SQL_FILE=${PWD}/exportCSV.sql
+SQL_FILE=${PWD}/extractCSV.sql
 CONTAINER_CHECK_URL=http://localhost:8081/search.php?q=Oranienburger
 
 # if Nominatim container is not running

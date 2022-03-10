@@ -24,7 +24,7 @@ GO_FILES := $(wildcard ./pkg/places/*.go ./internal/*.go ./*.go)
 
 all: berlinplaces
 
-berlin.csv: _data/exportCSV.sql _data/extractCSV.sh
+data: _data/extractCSV.sql _data/extractCSV.sh
 	cd _data && ./extractCSV.sh
 
 fmt:
@@ -77,4 +77,4 @@ stop_nominatim:
 clean:
 	rm -f berlinplaces c.out
 
-.PHONY: all fmt test lint coverage run_berlinplaces build_image run_image stop_image start_nominatim stop_nominatim clean
+.PHONY: all data fmt test lint coverage run_berlinplaces build_image run_image stop_image start_nominatim stop_nominatim clean
