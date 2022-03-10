@@ -8,4 +8,7 @@
 !.git
 !swagger
 !web
-!berlin.csv
+!_data/districts.csv
+!_data/streets.csv
+!_data/locations.csv
+!_data/housenumbers.csv
