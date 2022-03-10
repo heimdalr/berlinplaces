@@ -2,15 +2,18 @@ openapi: 3.0.2
 info:
   title: berlinplaces
   version: 0.0.1
-  description: autocomplete and geocode berlin places (see [example](/web))
+  description: |
+    **autocomplete** and **geocode** locations (i.e. bars, pubs, hotels), streets (i.e. street names) and buildings 
+    (i.e. housenumbers in streets) (see [example](/web))
 tags:
-  - name: api
+  - name: complete
+  - name: place
 paths:
 
-  /api:
+  /api/complete:
     get:
       tags:
-        - api
+        - complete
       summary: get completions
       description: get completions
       parameters:
@@ -20,7 +23,7 @@ paths:
             type: string
           description: the text to look up
           example:
-            elisabethfellerweg
+            Tiergartenq
       responses:
         '200':
           description: OK (success)
@@ -29,46 +32,89 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/placesResult'
+                  $ref: '#/components/schemas/completionResult'
               example:
-                - distance: 0
-                  percentage: 0
+                - distance: 4
                   place:
-                    placeID: 541950
-                    parentPlaceID: 465999
-                    class: highway
-                    type: living_street
-                    name: Elisabeth-Feller-Weg
-                    boundary: Lichterfelde
-                    neighbourhood: Schweizer Viertel
-                    postcode: '12205'
-                    city: Berlin
-                    lat: 52.4280125
-                    lon: 13.2992439
-                    relevance: 1
-                    simpleName: elisabethfellerweg
-                - distance: 6
-                  percentage: 0
-                  place:
-                    placeID: 526802
-                    parentPlaceID: 729970
-                    class: highway
-                    type: residential
-                    name: Elisabethweg
-                    boundary: Pankow
-                    postcode: '13187'
-                    city: Berlin
-                    lat: 52.5741318
-                    lon: 13.4058554
+                    id: 10561
+                    class: street
+                    name: Tiergartenufer
+                    postcode: '10623'
+                    district: Charlottenburg-Wilmersdorf
+                    length: 236
+                    lat: 52.513022715666686
+                    lon: 13.333934396722077
                     relevance: 0
-                    simpleName: elisabethweg
-
+                - distance: 5
+                  place:
+                    id: 13969
+                    class: location
+                    type: restaurant
+                    name: Tiergartenquelle
+                    street: Bachstraße
+                    streetID: 1012
+                    houseNumber: '6'
+                    postcode: '10555'
+                    district: Mitte
+                    lat: 52.5151591
+                    lon: 13.3367789
+                    relevance: 0
+        '400':
+          description: BadRequest - missing query parameter text
         '500':
           description: InternalServerError
+  /api/place/{id}:
+    get:
+      tags:
+        - place
+      summary: get a place
+      description: get a place
+      parameters:
+        - in: path
+          required: true
+          name: id
+          description: id of the place
+          schema:
+            type: string
+          example:
+            10561
+        - in: query
+          name: houseNumber
+          schema:
+            type: string
+          description: the housenumber to lookup in case of a street place
+          example:
+            2
+      responses:
+        '200':
+          description: OK (success)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/location'
+                  - $ref: '#/components/schemas/street'
+                  - $ref: '#/components/schemas/houseNumber'
+              example:
+                id: 248645
+                class: houseNumber
+                street: Tiergartenufer
+                streetID: 10561
+                houseNumber: '2'
+                postcode: '10623'
+                district: Charlottenburg-Wilmersdorf
+                lat: 52.5128775
+                lon: 13.3352267
+                relevance: 0
+        '404':
+          description: NotFound - a place with the given id (and houseNumber) does not exist
+        '500':
+          description: InternalServerError
+
 # components
 components:
   schemas:
-    placesResult:
+    completionResult:
       type: object
       properties:
         distance:
@@ -76,45 +122,46 @@ components:
         percentage:
           type: integer
         place:
-          $ref: '#/components/schemas/place'
-    place:
+          oneOf:
+            - $ref: '#/components/schemas/location'
+            - $ref: '#/components/schemas/street'
+    location:
       type: object
       required:
-        - placeID
-        - parentPlaceID
+        - id
         - class
         - type
         - name
+        - street
+        - streetID
+        - houseNumber
         - postcode
-        - city
+        - district
         - lat
         - lon
         - relevance
-        - simpleName
       properties:
-        placeID:
+        id:
           type: number
-          format: int64
-        parentPlaceID:
-          type: number
-          format: int64
-        osmID:
-          type: string
+          format: int32
         class:
           type: string
+          enum:
+            - "location"
         type:
           type: string
         name:
           type: string
         street:
           type: string
+        streetID:
+          type: number
+          format: int32
         houseNumber:
-          type: string
-        suburb:
           type: string
         postcode:
           type: string
-        city:
+        district:
           type: string
         lat:
           type: number
@@ -124,5 +171,82 @@ components:
           format: float64
         relevance:
           type: number
-        simpleName:
+    street:
+      type: object
+      required:
+        - id
+        - class
+        - name
+        - postcode
+        - district
+        - length
+        - lat
+        - lon
+        - relevance
+      properties:
+        id:
+          type: number
+          format: int32
+        class:
           type: string
+          enum:
+            - "street"
+        name:
+          type: string
+        postcode:
+          type: string
+        district:
+          type: string
+        length:
+          type: number
+          format: int32
+        lat:
+          type: number
+          format: float64
+        lon:
+          type: number
+          format: float64
+        relevance:
+          type: number
+    houseNumber:
+      type: object
+      required:
+        - id
+        - class
+        - type
+        - name
+        - street
+        - streetID
+        - houseNumber
+        - postcode
+        - district
+        - lat
+        - lon
+        - relevance
+      properties:
+        id:
+          type: number
+          format: int32
+        class:
+          type: string
+          enum:
+            - "houseNumber"
+        street:
+          type: string
+        streetID:
+          type: number
+          format: int32
+        houseNumber:
+          type: string
+        postcode:
+          type: string
+        district:
+          type: string
+        lat:
+          type: number
+          format: float64
+        lon:
+          type: number
+          format: float64
+        relevance:
+          type: number
