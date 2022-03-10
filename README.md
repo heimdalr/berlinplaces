@@ -45,7 +45,7 @@ and surf to:
 alternatively run (e.g.): 
 
 ~~~~bash
-curl --request GET --url 'http://localhost:8080/api/complete?text=Tiergartenq' | jq
+curl --request GET --url 'http://localhost:8080/places?text=Tiergartenq' | jq
 ~~~~
 
 which will result in something like:
