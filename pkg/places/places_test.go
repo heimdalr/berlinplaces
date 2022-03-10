@@ -69,7 +69,7 @@ street_id,housenumber,postcode,lat,lon
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := berlinPlaces.QueryStreetsAndLocations(context.Background(), tt.text)
+			r := berlinPlaces.GetCompletions(context.Background(), tt.text)
 			rLength := len(r)
 			if rLength < 1 {
 				t.Errorf("got %d, want > 0", rLength)

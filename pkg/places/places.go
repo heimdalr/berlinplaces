@@ -508,14 +508,14 @@ func (bp *Places) updateQueryStats(duration time.Duration) {
 	}
 }
 
-func (bp *Places) QueryStreetsAndLocations(ctx context.Context, input string) []*result {
+func (bp *Places) GetCompletions(ctx context.Context, input string) []*result {
 	start := time.Now()
-	r := bp.queryStreetsAndLocations(ctx, input)
+	r := bp.getCompletions(ctx, input)
 	go bp.updateQueryStats(time.Since(start))
 	return r
 }
 
-func (bp *Places) queryStreetsAndLocations(_ context.Context, input string) []*result {
+func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 
 	// dissect the input
 	input = sanitizeString(input)

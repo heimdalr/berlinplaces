@@ -22,13 +22,13 @@ func NewBerlinPlacesAPI(berlinPlaces *places.Places) BerlinPlacesAPI {
 
 // RegisterRoutes registers BerlinPlacesAPI routes.
 func (bpa BerlinPlacesAPI) RegisterRoutes(router *gin.RouterGroup) {
-	router.GET("/complete/", bpa.queryStreetsAndLocations)
-	router.GET("/complete", bpa.queryStreetsAndLocations)
+	router.GET("/complete/", bpa.getCompletions)
+	router.GET("/complete", bpa.getCompletions)
 	router.GET("/place/:placeID/", bpa.getPlace)
 	router.GET("/place/:placeID", bpa.getPlace)
 }
 
-func (bpa BerlinPlacesAPI) queryStreetsAndLocations(c *gin.Context) {
+func (bpa BerlinPlacesAPI) getCompletions(c *gin.Context) {
 
 	// timeout in seconds for calling geoapify
 	const timeout = 5
@@ -45,7 +45,7 @@ func (bpa BerlinPlacesAPI) queryStreetsAndLocations(c *gin.Context) {
 	defer cancel()
 
 	// query the geocoder
-	results := bpa.berlinPlaces.QueryStreetsAndLocations(ctx, text)
+	results := bpa.berlinPlaces.GetCompletions(ctx, text)
 
 	// return (i.e. forward) the response
 	c.JSON(http.StatusOK, results)
