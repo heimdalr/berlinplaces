@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/heimdalr/berlinplaces/internal"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
@@ -101,7 +100,7 @@ func (app *App) Initialize() error {
 	// register web routes
 	router.ServeFiles("/web/*filepath", http.Dir("web"))
 
-	// initialize places
+	/*// initialize places
 	p, err := initPlaces()
 	if err != nil {
 		return err
@@ -119,7 +118,7 @@ func (app *App) Initialize() error {
 
 	// register places routes
 	internal.NewPlacesAPI(p).RegisterRoutes(router)
-
+	*/
 	// version
 	router.GET("/version", getVersion)
 
