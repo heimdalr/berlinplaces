@@ -96,14 +96,15 @@ func (p *place) MarshalJSON() ([]byte, error) {
 			Lon       float64    `json:"lon"`
 			Relevance uint64     `json:"relevance"`
 		}{
-			ID:       p.ID,
-			Class:    p.Class,
-			Name:     p.Name,
-			Postcode: p.District.Postcode,
-			District: p.District.District,
-			Length:   p.Length,
-			Lat:      p.Lat,
-			Lon:      p.Lon,
+			ID:        p.ID,
+			Class:     p.Class,
+			Name:      p.Name,
+			Postcode:  p.District.Postcode,
+			District:  p.District.District,
+			Length:    p.Length,
+			Lat:       p.Lat,
+			Lon:       p.Lon,
+			Relevance: p.Relevance,
 		})
 	}
 	if p.Class == locationClass {
@@ -525,76 +526,104 @@ func (bp *Places) GetCompletions(ctx context.Context, input string) []*result {
 func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 
 	// dissect the input
-	input = sanitizeString(input)
-	runes := []rune(input)
+	simpleInput := sanitizeString(input)
+	runes := []rune(simpleInput)
 	inputLength := len(runes)
 
 	// if we have a matching cache entry return it
-	cacheResults, hit := bp.cache.Get(input)
+	cacheResults, hit := bp.cache.Get(simpleInput)
 	if hit {
 		if results, ok := cacheResults.([]*result); ok {
+
+			// update relevance
+			go bp.updateRelevance(results, simpleInput)
+
 			return results
 		} else {
 			panic("failed to cast cache results")
 		}
 	}
 
-	// if input is longer than max prefix length
+	// if simpleInput is longer than max prefix length
 	if inputLength >= bp.maxPrefixLength {
 
 		// compute the (max) prefix string
-		prefixString := string(runes[:bp.maxPrefixLength])
+		prefixString := string(runes[:min(len(runes), bp.maxPrefixLength)])
 
 		// if we have a matching entry in the prefix map
 		if pf, ok := bp.prefixMap[prefixString]; ok {
 
 			// do Levenshtein on the places associated with this prefix
-			results := bp.levenshtein(pf.places, input)
+			results := bp.levenshtein(pf.places, simpleInput)
 
-			// try to cache results (i.e. we extend the prefix map by longer prefixes)
 			go func() {
-				_ = bp.cache.Set(input, results, 0)
+
+				// update relevance for exact matches
+				bp.updateRelevance(results, simpleInput)
+
+				// try to cache results (i.e. we extend the prefix map by longer prefixes)
+				bp.cache.Set(simpleInput, results, 0)
 			}()
 
 			return results
 		} else {
 
 			// do Levenshtein on all streets and locations
-			results := bp.levenshtein(bp.streetsAndLocations, input)
+			results := bp.levenshtein(bp.streetsAndLocations, simpleInput)
 
-			// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
 			go func() {
-				_ = bp.cache.Set(input, results, 0)
+
+				// update relevance for exact matches
+				bp.updateRelevance(results, simpleInput)
+
+				// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
+				bp.cache.Set(simpleInput, results, 0)
 			}()
 
 			return results
 		}
 	}
 
-	// input length is smaller than max prefix length thus the input is the prefix to match
+	// simpleInput length is smaller than max prefix length thus the simpleInput is the prefix to match
 
 	// if we have a matching entry in the prefixMap, then there must be exact matches and / or completions
-	if pf, ok := bp.prefixMap[input]; ok {
+	if pf, ok := bp.prefixMap[simpleInput]; ok {
 
-		// if there are more exact matches than needed, return them (all)
+		var results []*result
+
+		// if there are more exact matches than needed
 		if len(pf.exact) >= bp.minCompletionCount {
-			return pf.exact
+
+			// return them (all)
+			results = pf.exact
+		} else {
+
+			// combine exact matches and completions
+			results = append(pf.exact, pf.completions...)
+
+			// trim results
+			results = results[:min(len(results), bp.minCompletionCount)]
 		}
 
-		// combine exact matches and completions and return the those
-		combined := append(pf.exact, pf.completions...)
-		return combined
+		// update relevance for exact matches
+		go bp.updateRelevance(results, simpleInput)
+
+		return results
 	}
 
 	// there is no matching prefix, but above levMinimum
 	if inputLength >= bp.levMinimum {
 
 		// do levenshtein on all streets and location
-		results := bp.levenshtein(bp.streetsAndLocations, input)
+		results := bp.levenshtein(bp.streetsAndLocations, simpleInput)
 
-		// try to cache results
 		go func() {
-			_ = bp.cache.Set(input, results, 0)
+
+			// update relevance for exact matches
+			bp.updateRelevance(results, simpleInput)
+
+			// try to cache results
+			bp.cache.Set(simpleInput, results, 0)
 		}()
 
 		return results
@@ -627,13 +656,13 @@ func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *
 	return nil
 }
 
-func (bp *Places) levenshtein(places []*place, text string) []*result {
+func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 
-	// for each placeOld compute the Levenshtein-Distance between its simple name and the given text
+	// for each place compute the Levenshtein-Distance between its simple name and the given simple input
 	results := make([]*result, len(places))
 	for i, p := range places {
 		results[i] = &result{
-			Distance: levenshtein.ComputeDistance(text, p.simpleName),
+			Distance: levenshtein.ComputeDistance(simpleInput, p.simpleName),
 			Place:    p,
 		}
 	}
@@ -645,33 +674,41 @@ func (bp *Places) levenshtein(places []*place, text string) []*result {
 		return di < dj || (di == dj && placeLesser(results[i].Place, results[j].Place))
 	})
 
-	go func() {
-		bp.updateRelevance(results)
-	}()
-
-	// compute the number of completions to return
+	// compute the number of completions to return (all exact matches filled up to minCompletionCount by inexact matches)
 	count := min(bp.minCompletionCount, len(results))
+	for i := count; i < len(results); i++ {
+		if results[i].Place.simpleName == simpleInput {
 
-	// return the top n completions with the smallest Levenshtein-Distance
+			// we are past minCompletionCount but still have an exact match, therefore add it
+			count += 1
+		} else {
+
+			// as results are ordered by distance, we can break here
+			break
+		}
+	}
+
+	// return the top count completions
 	topResults := results[:count]
+
 	return topResults
 }
 
-func (bp *Places) updateRelevance(results []*result) {
+// updateRelevance increases the relevance for each exact match in the results
+// slice and returns the number of updated elements.
+func (bp *Places) updateRelevance(results []*result, simpleInput string) {
 
 	// for each result
 	for _, r := range results {
 
-		// if the distance is 0, the input resulted in an exact match
-		if r.Distance == 0 {
+		// if the particular result in an exact match
+		if r.Place.simpleName == simpleInput {
+
+			// get the original place (not from the result set as this may be from the cache)
+			p := bp.placesMap[r.Place.ID]
 
 			// increase relevance (thread safe)
-			atomic.AddUint64(&r.Place.Relevance, 1)
-
-		} else {
-
-			// results are ordered by distance wrt. text, thus break as soon as not 0
-			break
+			atomic.AddUint64(&p.Relevance, 1)
 		}
 	}
 }
