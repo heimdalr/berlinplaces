@@ -16,6 +16,11 @@ import (
 	"unicode"
 )
 
+// TODO: TTL seems to not work
+// time to wait before invalidating a cache entry (need to invalidate cache
+// entries to get relevance updates to bubble in)
+var cacheTTL = 60 * time.Second
+
 type district struct {
 	Postcode string `csv:"postcode"`
 	District string `csv:"district"`
@@ -172,14 +177,10 @@ type result struct {
 // prefix represents precomputed completions and places for a given prefix
 type prefix struct {
 
-	// exact matches (i.e. places whose ids exactly match this prefix)
-	// (there may be more than minCompletionCount exact matches)
-	exact []*result
-
-	// completions (i.e. places to suggest for this prefix (only if not at maxPrefixLength)
+	// completions (i.e. places to suggest for this prefix (only if < maxPrefixLength)
 	completions []*result
 
-	// places covered by this prefix (only if at maxPrefixLength)
+	// places covered by this prefix (if < maxPrefixLength those are the places in the completions)
 	places []*place
 }
 
@@ -434,7 +435,7 @@ func placeLesser(i, j *place) bool {
 	return false
 }
 
-// computePrefixMap associates places with prefixes.
+// computePrefixMap associates prefixes with completions xor places.
 func (bp *Places) computePrefixMap() {
 
 	pm := make(map[string]*prefix)
@@ -452,42 +453,29 @@ func (bp *Places) computePrefixMap() {
 				pm[prefixStr] = &prefix{}
 			}
 
-			// append this place as an exact match, if its id exactly matches the current prefix
-			if remainderLength == 0 {
-
-				r := result{
-					Distance: 0,
-					Place:    p,
-				}
-				pm[prefixStr].exact = append(pm[prefixStr].exact, &r)
-				continue
-			}
-
-			// if not at max maxPrefixLength
+			// append this place as a completion and place if below maxPrefixLength and
+			// - its id exactly matches the current prefix or
+			// - we don't have enough completions yet
 			if d < bp.maxPrefixLength {
-
-				// if completions are not yet full
-				if len(pm[prefixStr].completions) < bp.minCompletionCount {
+				if remainderLength == 0 || len(pm[prefixStr].completions) < bp.minCompletionCount {
 					r := result{
 						Distance: remainderLength,
 						Place:    p,
 					}
-
-					// add place as completion
+					pm[prefixStr].places = append(pm[prefixStr].places, p)
 					pm[prefixStr].completions = append(pm[prefixStr].completions, &r)
+					continue
 				}
-
 			} else {
 
-				// we are at max maxPrefixLength so collect this place
+				// we are at or above maxPrefixLength thus at the place as place
 				pm[prefixStr].places = append(pm[prefixStr].places, p)
 			}
 		}
+
+		bp.prefixMap = pm
 	}
-
-	bp.prefixMap = pm
 }
-
 func (bp *Places) Metrics() Metrics {
 	bp.m.RLock()
 	defer bp.m.RUnlock()
@@ -544,7 +532,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 		}
 	}
 
-	// if simpleInput is longer than max prefix length
+	// if simpleInput is longer or equal to than maxPrefixLength
 	if inputLength >= bp.maxPrefixLength {
 
 		// compute the (max) prefix string
@@ -558,14 +546,15 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 
 			go func() {
 
-				// update relevance for exact matches
+				// update relevance
 				bp.updateRelevance(results, simpleInput)
 
 				// try to cache results (i.e. we extend the prefix map by longer prefixes)
-				bp.cache.Set(simpleInput, results, 0)
+				bp.cache.SetWithTTL(simpleInput, results, 0, cacheTTL)
 			}()
 
 			return results
+
 		} else {
 
 			// do Levenshtein on all streets and locations
@@ -573,11 +562,11 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 
 			go func() {
 
-				// update relevance for exact matches
+				// update relevance
 				bp.updateRelevance(results, simpleInput)
 
 				// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
-				bp.cache.Set(simpleInput, results, 0)
+				bp.cache.SetWithTTL(simpleInput, results, 0, cacheTTL)
 			}()
 
 			return results
@@ -586,29 +575,13 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 
 	// simpleInput length is smaller than max prefix length thus the simpleInput is the prefix to match
 
-	// if we have a matching entry in the prefixMap, then there must be exact matches and / or completions
+	// if we have a matching entry in the prefixMap, then return the completions for that
 	if pf, ok := bp.prefixMap[simpleInput]; ok {
 
-		var results []*result
+		// update relevance
+		go bp.updateRelevance(pf.completions, simpleInput)
 
-		// if there are more exact matches than needed
-		if len(pf.exact) >= bp.minCompletionCount {
-
-			// return them (all)
-			results = pf.exact
-		} else {
-
-			// combine exact matches and completions
-			results = append(pf.exact, pf.completions...)
-
-			// trim results
-			results = results[:min(len(results), bp.minCompletionCount)]
-		}
-
-		// update relevance for exact matches
-		go bp.updateRelevance(results, simpleInput)
-
-		return results
+		return pf.completions
 	}
 
 	// there is no matching prefix, but above levMinimum
@@ -623,7 +596,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 			bp.updateRelevance(results, simpleInput)
 
 			// try to cache results
-			bp.cache.Set(simpleInput, results, 0)
+			bp.cache.SetWithTTL(simpleInput, results, 0, cacheTTL)
 		}()
 
 		return results
@@ -674,7 +647,7 @@ func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 		return di < dj || (di == dj && placeLesser(results[i].Place, results[j].Place))
 	})
 
-	// compute the number of completions to return (all exact matches filled up to minCompletionCount by inexact matches)
+	// compute the number of completions to return (i.e. all exact matches filled up to minCompletionCount)
 	count := min(bp.minCompletionCount, len(results))
 	for i := count; i < len(results); i++ {
 		if results[i].Place.simpleName == simpleInput {
@@ -688,15 +661,15 @@ func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 		}
 	}
 
-	// return the top count completions
-	topResults := results[:count]
-
-	return topResults
+	// return the completions
+	return results[:count]
 }
 
 // updateRelevance increases the relevance for each exact match in the results
-// slice and returns the number of updated elements.
-func (bp *Places) updateRelevance(results []*result, simpleInput string) {
+// slice and returns a slice containing the updated elements (if any).
+func (bp *Places) updateRelevance(results []*result, simpleInput string) []*place {
+
+	var updatedPlaces []*place
 
 	// for each result
 	for _, r := range results {
@@ -704,12 +677,58 @@ func (bp *Places) updateRelevance(results []*result, simpleInput string) {
 		// if the particular result in an exact match
 		if r.Place.simpleName == simpleInput {
 
-			// get the original place (not from the result set as this may be from the cache)
-			p := bp.placesMap[r.Place.ID]
-
 			// increase relevance (thread safe)
-			atomic.AddUint64(&p.Relevance, 1)
+			atomic.AddUint64(&r.Place.Relevance, 1)
+
+			updatedPlaces = append(updatedPlaces, r.Place)
 		}
+	}
+
+	// update prefix completions if needed
+	if len(updatedPlaces) > 0 {
+		bp.updateCompletions(updatedPlaces)
+	}
+
+	return updatedPlaces
+}
+
+// updateCompletions updates completions for the given places (which must have
+// all the same simpleName - see updateRelevance).
+func (bp *Places) updateCompletions(updatedPlaces []*place) {
+
+	simpleName := updatedPlaces[0].simpleName
+	runes := []rune(simpleName)
+	runesLen := len(runes)
+
+	// assertion about updated place names
+	for _, p := range updatedPlaces {
+		if p.simpleName != simpleName {
+			panic("unexpected place name")
+		}
+	}
+
+	for d := 1; d < min(bp.maxPrefixLength, runesLen); d++ {
+
+		prefixStr := string(runes[:d])
+
+		// get the current completions for this prefix
+		currentPlaces := bp.prefixMap[prefixStr].places
+
+		// merge the results that where updated to the current completions and deduplicate
+		mergedPlaces := deDuplicate(append(currentPlaces, updatedPlaces...))
+
+		// do Levenshtein on the merged places wrt. the prefix string
+		results := bp.levenshtein(mergedPlaces, prefixStr)
+
+		var newCompletions []*result
+		var newPlaces []*place
+		for _, r := range results {
+			if r.Place.simpleName == prefixStr || len(newCompletions) < bp.minCompletionCount {
+				newCompletions = append(newCompletions, r)
+				newPlaces = append(newPlaces, r.Place)
+			}
+		}
+
 	}
 }
 
@@ -718,4 +737,20 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// deDuplicate removes duplicate places.
+func deDuplicate(results []*place) []*place {
+
+	ids := make(map[int]interface{})
+	var places []*place
+
+	for _, p := range results {
+		if _, exists := ids[p.ID]; !exists {
+			ids[p.ID] = struct{}{}
+			places = append(places, p)
+		}
+	}
+
+	return places
 }
