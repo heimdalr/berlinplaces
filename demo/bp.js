@@ -125,7 +125,7 @@ const myBloodhoundConfiguration = new Bloodhound({
 // myTypeaheadOptions are the Typeahead Options.
 const myTypeaheadOptions = {
     hint: true,
-    highlight: true,
+    highlight: false,
     minLength: 1
 }
 
