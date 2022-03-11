@@ -115,7 +115,7 @@ const myBloodhoundConfiguration = new Bloodhound({
     remote: {
         url: 'http://localhost:8080/places?text=%QUERY',
         wildcard: '%QUERY',
-        rateLimitWait: 10,
+        rateLimitWait: 100,
 
         // what to do with results before they are fed to Bloodhound
         filter: annotateDuplicates

@@ -52,9 +52,6 @@ func main() {
 		Str("port", viper.GetString("PORT")).
 		Bool("spec", viper.GetBool("SPEC")).
 		Bool("demo", viper.GetBool("DEMO")).
-		Int("maxPrefixLength", viper.GetInt("MAX_PREFIX_LENGTH")).
-		Int("minCompletionCount", viper.GetInt("MIN_COMPLETION_COUNT")).
-		Int("levMinimum", viper.GetInt("LEV_MINIMUM")).
 		Msg("config")
 
 	// initialize the app
@@ -91,12 +88,16 @@ func viperSetup() {
 	// be careful this is close to exponential (2 => ~500, 3 => ~3000, 4 => ~10000 prefixes)
 	viper.SetDefault("MAX_PREFIX_LENGTH", 4)
 	viper.SetDefault("MIN_COMPLETION_COUNT", 10)
-	viper.SetDefault("LEV_MINIMUM", 0)
+	viper.SetDefault("LEV_MINIMUM", 4)
 
 	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root
 	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
 	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
 	viper.SetDefault("HOUSE_NUMBERS_CSV", "_data/housenumbers.csv")
+
+	viper.SetDefault("RANKING_DISTANCE_CUT", 4) // distanceCut is the delta in distances to ignore in favor of relevance
+
+	viper.SetDefault("CACHE_TTL", 300) // number of seconds before evicting cache entries
 
 	// set defaults for whether to enable swagger-docs depending on DEBUG
 	if viper.GetBool("DEBUG") {
@@ -239,11 +240,7 @@ func initPlaces() (*places.Places, error) {
 	}()
 
 	// initialize places
-	maxPrefixLength := viper.GetInt("MAX_PREFIX_LENGTH")
-	minCompletionCount := viper.GetInt("MIN_COMPLETION_COUNT")
-	levMinimum := viper.GetInt("LEV_MINIMUM")
-
-	p, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, houseNumbersFile, maxPrefixLength, minCompletionCount, levMinimum)
+	p, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, houseNumbersFile)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize places: %w", err))
 	}

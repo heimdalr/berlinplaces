@@ -8,6 +8,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/gocarina/gocsv"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"io"
 	"sort"
 	"strings"
@@ -16,15 +17,6 @@ import (
 	"time"
 	"unicode"
 )
-
-// time to wait before invalidating a cache entry (need to invalidate cache
-// entries to get relevance updates to bubble in)
-var cacheTTL = 10 * time.Second
-
-// distanceCut is used in result ranking. distanceCut is the delta in distances
-// to ignore in favor of relevance (unless one of the results has a distance of
-// 0).
-const distanceCut = 4
 
 type district struct {
 	Postcode string `csv:"postcode"`
@@ -200,6 +192,15 @@ type Places struct {
 	// the minimum input length before doing Levenshtein
 	levMinimum int
 
+	// distanceCut is used in result ranking. distanceCut is the delta in distances
+	// to ignore in favor of relevance (unless one of the results has a distance of
+	// 0).
+	distanceCut int
+
+	// duration to wait before evicting cache entries
+	cacheTTLSeconds int
+	cacheTTL        time.Duration
+
 	// all places
 	placesMap map[int]*place
 
@@ -228,6 +229,8 @@ type Metrics struct {
 	MaxPrefixLength    int                `json:"maxPrefixLength"`
 	MinCompletionCount int                `json:"minCompletionCount"`
 	LevMinimum         int                `json:"levMinimum"`
+	DistanceCut        int                `json:"distanceCut"`
+	CacheTTL           int                `json:"cacheTTL"`
 	StreetCount        int                `json:"streetCount"`
 	LocationCount      int                `json:"locationCount"`
 	HouseNumberCount   int                `json:"houseNumberCount"`
@@ -237,13 +240,17 @@ type Metrics struct {
 	AvgLookupTime      time.Duration      `json:"avgLookupTime"`
 }
 
-func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader, maxPrefixLength, minCompletionCount, levMinimum int) (*Places, error) {
+func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader) (*Places, error) {
 
 	// basic init
+	cacheTTLSeconds := viper.GetInt("CACHE_TTL")
 	places := Places{
-		maxPrefixLength:    maxPrefixLength,
-		minCompletionCount: minCompletionCount,
-		levMinimum:         levMinimum,
+		maxPrefixLength:    viper.GetInt("MAX_PREFIX_LENGTH"),
+		minCompletionCount: viper.GetInt("MIN_COMPLETION_COUNT"),
+		levMinimum:         viper.GetInt("LEV_MINIMUM"),
+		distanceCut:        viper.GetInt("RANKING_DISTANCE_CUT"),
+		cacheTTLSeconds:    cacheTTLSeconds,
+		cacheTTL:           time.Duration(cacheTTLSeconds) * time.Second,
 	}
 
 	// unmarshal district list
@@ -376,186 +383,6 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 
 }
 
-// sanitizeString to unicode letters, spaces and minus
-func sanitizeString(s string) string {
-	// only unicode letters, spaces and minus
-	s = strings.Map(func(r rune) rune {
-		if unicode.IsLetter(r) {
-			return r
-		}
-		return -1
-	}, s)
-	// remove spaces and minus from head and tail and lower case
-	return strings.ToLower(strings.Trim(s, " -"))
-}
-
-// resultRanking compares two levenshtein results wrt. distance, relevance, class, and (in case of streets) length.
-// resultRanking returns true, if the first place should be ranked higher than the second one. resultRanking should
-// be used in sorting slices (analog to the lesser function) sorting higher ranks to the beginning.
-func resultRanking(i, j *result) bool {
-
-	di := i.Distance
-	dj := j.Distance
-
-	// If one of the distances is 0 (i.e. an exact match) but not both rank the exact match higher.
-	if di != dj {
-		if di == 0 {
-			return true
-		}
-		if dj == 0 {
-			return false
-		}
-	}
-
-	// If none of the results is an exact match but the delta in distances is greater than distanceCut
-	// the one with the smaller distance will be ranked higher.
-	distanceDelta := abs(di - dj)
-	if distanceDelta > distanceCut {
-		if di < dj {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	pi := i.Place
-	pj := j.Place
-
-	// As there is no exact match and the delta in distances is within distanceCut,
-	// rank by relevance (if different).
-	if pi.Relevance != pj.Relevance {
-		if pi.Relevance > pj.Relevance {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// relevance is equal, come back to distances
-	if di != dj {
-		if di < dj {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// results have same distance and relevance, rank streets over locations
-	if pi.Class != pj.Class {
-		if pi.Class == streetClass {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// if streets, less by longer length (by the above clause, types must be equal)
-	if pi.Class == streetClass {
-		if pi.Length > pj.Length {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	return false
-}
-
-// placeLesser compares two places wrt. string length and lexical order. placeLesser return true, if the first place
-// is less than the second one.
-func placeLesser(i, j *place) bool {
-
-	// less by character length
-	if len(i.simpleName) != len(j.simpleName) {
-		if len(i.simpleName) < len(j.simpleName) {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// less by lex
-	if i.simpleName != j.simpleName {
-		if i.simpleName < j.simpleName {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// defaults
-	return false
-}
-
-// computePrefixMap associates prefixes with completions xor places.
-func (bp *Places) computePrefixMap() {
-
-	pm := make(map[string]*prefix)
-
-	for d := 1; d <= bp.maxPrefixLength; d++ {
-		for _, p := range bp.streetsAndLocations {
-			runes := []rune(p.simpleName)
-			runesLen := len(runes)
-			prefixLen := min(runesLen, d)
-			remainderLength := runesLen - prefixLen
-			prefixStr := string(runes[:prefixLen])
-
-			// as we are here we have something for this prefix, init a map entry (if necessary)
-			if _, ok := pm[prefixStr]; !ok {
-				pm[prefixStr] = &prefix{}
-			}
-
-			// append this place as a completion and place if below maxPrefixLength and
-			// - its id exactly matches the current prefix or
-			// - we don't have enough completions yet
-			if d < bp.maxPrefixLength {
-				if remainderLength == 0 || len(pm[prefixStr].completions) < bp.minCompletionCount {
-					r := result{
-						Distance: remainderLength,
-						Place:    p,
-					}
-					pm[prefixStr].places = append(pm[prefixStr].places, p)
-					pm[prefixStr].completions = append(pm[prefixStr].completions, &r)
-					continue
-				}
-			} else {
-
-				// we are at or above maxPrefixLength thus at the place as place
-				pm[prefixStr].places = append(pm[prefixStr].places, p)
-			}
-		}
-
-		bp.prefixMap = pm
-	}
-}
-func (bp *Places) Metrics() Metrics {
-	bp.m.RLock()
-	defer bp.m.RUnlock()
-	return Metrics{
-		MaxPrefixLength:    bp.maxPrefixLength,
-		MinCompletionCount: bp.minCompletionCount,
-		LevMinimum:         bp.levMinimum,
-		StreetCount:        bp.streetCount,
-		LocationCount:      bp.locationCount,
-		HouseNumberCount:   bp.houseNumberCount,
-		PrefixCount:        bp.prefixCount,
-		CacheMetrics:       bp.cache.Metrics,
-		AvgLookupTime:      bp.avgQueryTime,
-		QueryCount:         bp.queryCount,
-	}
-}
-
-func (bp *Places) updateMetrics(duration time.Duration) {
-	bp.m.Lock()
-	defer bp.m.Unlock()
-	bp.queryCount += 1
-	if bp.avgQueryTime == 0 {
-		bp.avgQueryTime = duration
-	} else {
-		bp.avgQueryTime = (bp.avgQueryTime + duration) / 2
-	}
-}
-
 func (bp *Places) GetCompletions(ctx context.Context, input string) []*result {
 	start := time.Now()
 	r := bp.getCompletions(ctx, input)
@@ -602,7 +429,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 				bp.updateRelevance(results, simpleInput)
 
 				// try to cache results (i.e. we extend the prefix map by longer prefixes)
-				bp.cache.SetWithTTL(simpleInput, results, 0, cacheTTL)
+				bp.cache.SetWithTTL(simpleInput, results, 0, bp.cacheTTL)
 			}()
 
 			return results
@@ -618,7 +445,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 				bp.updateRelevance(results, simpleInput)
 
 				// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
-				bp.cache.SetWithTTL(simpleInput, results, 0, cacheTTL)
+				bp.cache.SetWithTTL(simpleInput, results, 0, bp.cacheTTL)
 			}()
 
 			return results
@@ -648,7 +475,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 			bp.updateRelevance(results, simpleInput)
 
 			// try to cache results
-			bp.cache.SetWithTTL(simpleInput, results, 0, cacheTTL)
+			bp.cache.SetWithTTL(simpleInput, results, 0, bp.cacheTTL)
 		}()
 
 		return results
@@ -679,6 +506,67 @@ func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *
 	}
 
 	return nil
+}
+
+func (bp *Places) Metrics() Metrics {
+	bp.m.RLock()
+	defer bp.m.RUnlock()
+	return Metrics{
+		MaxPrefixLength:    bp.maxPrefixLength,
+		MinCompletionCount: bp.minCompletionCount,
+		LevMinimum:         bp.levMinimum,
+		DistanceCut:        bp.distanceCut,
+		CacheTTL:           bp.cacheTTLSeconds,
+		StreetCount:        bp.streetCount,
+		LocationCount:      bp.locationCount,
+		HouseNumberCount:   bp.houseNumberCount,
+		PrefixCount:        bp.prefixCount,
+		CacheMetrics:       bp.cache.Metrics,
+		AvgLookupTime:      bp.avgQueryTime,
+		QueryCount:         bp.queryCount,
+	}
+}
+
+// computePrefixMap associates prefixes with completions xor places.
+func (bp *Places) computePrefixMap() {
+
+	pm := make(map[string]*prefix)
+
+	for d := 1; d <= bp.maxPrefixLength; d++ {
+		for _, p := range bp.streetsAndLocations {
+			runes := []rune(p.simpleName)
+			runesLen := len(runes)
+			prefixLen := min(runesLen, d)
+			remainderLength := runesLen - prefixLen
+			prefixStr := string(runes[:prefixLen])
+
+			// as we are here we have something for this prefix, init a map entry (if necessary)
+			if _, ok := pm[prefixStr]; !ok {
+				pm[prefixStr] = &prefix{}
+			}
+
+			// append this place as a completion and place if below maxPrefixLength and
+			// - its id exactly matches the current prefix or
+			// - we don't have enough completions yet
+			if d < bp.maxPrefixLength {
+				if remainderLength == 0 || len(pm[prefixStr].completions) < bp.minCompletionCount {
+					r := result{
+						Distance: remainderLength,
+						Place:    p,
+					}
+					pm[prefixStr].places = append(pm[prefixStr].places, p)
+					pm[prefixStr].completions = append(pm[prefixStr].completions, &r)
+					continue
+				}
+			} else {
+
+				// we are at or above maxPrefixLength thus at the place as place
+				pm[prefixStr].places = append(pm[prefixStr].places, p)
+			}
+		}
+
+		bp.prefixMap = pm
+	}
 }
 
 // updateRelevance increases the relevance for each exact match in the results
@@ -761,7 +649,7 @@ func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 
 	// sort results via place ranking.
 	sort.Slice(results, func(i, j int) bool {
-		return resultRanking(results[i], results[j])
+		return bp.resultRanking(results[i], results[j])
 	})
 
 	// compute the number of completions to return (i.e. all exact matches filled up to minCompletionCount)
@@ -782,6 +670,115 @@ func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 	return results[:count]
 }
 
+func (bp *Places) updateMetrics(duration time.Duration) {
+	bp.m.Lock()
+	defer bp.m.Unlock()
+	bp.queryCount += 1
+	if bp.avgQueryTime == 0 {
+		bp.avgQueryTime = duration
+	} else {
+		bp.avgQueryTime = (bp.avgQueryTime + duration) / 2
+	}
+}
+
+// resultRanking compares two levenshtein results wrt. distance, relevance, class, and (in case of streets) length.
+// resultRanking returns true, if the first place should be ranked higher than the second one. resultRanking should
+// be used in sorting slices (analog to the lesser function) sorting higher ranks to the beginning.
+func (bp *Places) resultRanking(i, j *result) bool {
+
+	di := i.Distance
+	dj := j.Distance
+
+	// If one of the distances is 0 (i.e. an exact match) but not both rank the exact match higher.
+	if di != dj {
+		if di == 0 {
+			return true
+		}
+		if dj == 0 {
+			return false
+		}
+	}
+
+	// If none of the results is an exact match but the delta in distances is greater than distanceCut
+	// the one with the smaller distance will be ranked higher.
+	distanceDelta := abs(di - dj)
+	if distanceDelta > bp.distanceCut {
+		if di < dj {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	pi := i.Place
+	pj := j.Place
+
+	// As there is no exact match and the delta in distances is within distanceCut,
+	// rank by relevance (if different).
+	if pi.Relevance != pj.Relevance {
+		if pi.Relevance > pj.Relevance {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// relevance is equal, come back to distances
+	if di != dj {
+		if di < dj {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// results have same distance and relevance, rank streets over locations
+	if pi.Class != pj.Class {
+		if pi.Class == streetClass {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// if streets, less by longer length (by the above clause, types must be equal)
+	if pi.Class == streetClass {
+		if pi.Length > pj.Length {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	return false
+}
+
+// placeLesser compares two places wrt. string length and lexical order. placeLesser return true, if the first place
+// is less than the second one.
+func placeLesser(i, j *place) bool {
+
+	// less by character length
+	if len(i.simpleName) != len(j.simpleName) {
+		if len(i.simpleName) < len(j.simpleName) {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// less by lex
+	if i.simpleName != j.simpleName {
+		if i.simpleName < j.simpleName {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// defaults
+	return false
+}
+
 // deDuplicate removes duplicate places.
 func deDuplicate(results []*place) []*place {
 
@@ -796,6 +793,19 @@ func deDuplicate(results []*place) []*place {
 	}
 
 	return places
+}
+
+// sanitizeString to unicode letters, spaces and minus
+func sanitizeString(s string) string {
+	// only unicode letters, spaces and minus
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) {
+			return r
+		}
+		return -1
+	}, s)
+	// remove spaces and minus from head and tail and lower case
+	return strings.ToLower(strings.Trim(s, " -"))
 }
 
 func min(a, b int) int {
