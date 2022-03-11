@@ -25,24 +25,37 @@ Thus here it is, berlinplaces is:
 The demo (see below) looks like:
 
 [![demo](places.png)](places.gif)
-  
+
 ## Getting Started
 
-Have [Go](https://go.dev/) >= 1.17 installed and run: 
+### Getting Sources
+
+First, clone the repo and switch into the new directory:
 
 ~~~~bash
 git clone git@github.com:heimdalr/berlinplaces.git
 cd berlinplaces
+~~~~
+
+### Build and Run
+
+Inside the directory `berlinplaces`, build and run via Docker:
+
+~~~~bash
+docker build -t berlinplaces .
+docker run -p 8080:8080 -e PLACES_DEBUG=true --name berlinplaces berlinplaces
+~~~~
+
+or have  [Go](https://go.dev/) >= 1.17 installed and run: 
+
+~~~~bash
 go build -o berlinplaces .
 ./berlinplaces 
 ~~~~
 
-and surf to:
+### API Usage
 
-- <http://localhost:8080/demo> - demo website or
-- <http://localhost:8080/swagger> - the OpenAPI spec
-
-alternatively run (e.g.): 
+After the service is up and running (via docker or local), run (e.g.):
 
 ~~~~bash
 curl --request GET --url 'http://localhost:8080/places?text=Tiergartenq' | jq
@@ -86,9 +99,20 @@ which will result in something like:
 ]
 ~~~~
 
+The API spec is thereby served at <http://localhost:8080/swagger>.
+
+### DEMO
+
+To see a demo website using the API for a location / address input, surf to <http://localhost:8080/demo>.
+
+Note, whether the demo website is being served is controlled via the environment variable `PLACES_DEMO` (and defaults 
+depend on `PLACES_DEBUG`). 
+
+
+
 ## OSM Data
 
-The repository at hand contains mangled OSM data for Berlin (`_data/*.csv`). 
+The repository at hand contains "mangled" OSM data for Berlin (`_data/*.csv`) - hence berlinplaces. 
 
 See [`_data/README.md`](_data/README.md) for how to generate those CSV files.  
 

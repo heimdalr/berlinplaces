@@ -53,7 +53,7 @@ build_image: Dockerfile
 	docker build -t berlinplaces .
 
 run_image: stop_image
-	docker run -p 8080:8080 --name berlinplaces berlinplaces
+	docker run -p 8080:8080 -e PLACES_DEBUG=true --name berlinplaces berlinplaces
 
 stop_image:
 	docker stop berlinplaces 2>/dev/null || true
