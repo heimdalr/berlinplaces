@@ -38,12 +38,22 @@ func main() {
 	viperSetup()
 
 	// configure the logger
-	if viper.GetString("MODE") == "debug" {
+	if viper.GetBool("DEBUG") {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
 	// show version info
-	log.Info().Str("version", buildVersion).Str("hash", buildGitHash).Msg("app info")
+	log.Info().Str("version", buildVersion).Str("hash", buildGitHash).Msg("app")
+
+	// show config
+	log.Info().
+		Bool("debug", viper.GetBool("DEBUG")).
+		Str("port", viper.GetString("PORT")).
+		Bool("demo", viper.GetBool("DEMO")).
+		Int("maxPrefixLength", viper.GetInt("MAX_PREFIX_LENGTH")).
+		Int("minCompletionCount", viper.GetInt("MIN_COMPLETION_COUNT")).
+		Int("levMinimum", viper.GetInt("LEV_MINIMUM")).
+		Msg("config")
 
 	// initialize the app
 	var app App
@@ -72,7 +82,7 @@ func viperSetup() {
 	viper.AutomaticEnv()
 
 	// default values
-	viper.SetDefault("MODE", "debug") // debug->debug or anything for release
+	viper.SetDefault("DEBUG", true)
 	viper.SetDefault("PORT", "8080")
 
 	viper.SetDefault("MAX_PREFIX_LENGTH", 6)
@@ -83,6 +93,12 @@ func viperSetup() {
 	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
 	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
 	viper.SetDefault("HOUSE_NUMBERS_CSV", "_data/housenumbers.csv")
+
+	if viper.GetBool("DEBUG") {
+		viper.SetDefault("DEMO", true)
+	} else {
+		viper.SetDefault("DEMO", false)
+	}
 
 }
 
@@ -101,8 +117,13 @@ func (app *App) Initialize() error {
 	// register swagger routes
 	router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
 
-	// register web routes
-	router.ServeFiles("/web/*filepath", http.Dir("web"))
+	// register web routes and redirect (if desired)
+	if viper.GetBool("DEMO") {
+		router.ServeFiles("/web/*filepath", http.Dir("web"))
+		router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+			http.Redirect(w, r, "/web/", 301)
+		})
+	}
 
 	// initialize places
 	p, err := initPlaces()
@@ -111,25 +132,17 @@ func (app *App) Initialize() error {
 	}
 	m := p.Metrics()
 	log.Info().
-		Int("maxPrefixLength", m.MaxPrefixLength).
-		Int("minCompletionCount", m.MinCompletionCount).
-		Int("levMinimum", m.LevMinimum).
 		Int("streetCount", m.StreetCount).
 		Int("locationCount", m.LocationCount).
 		Int("houseNumberCount", m.HouseNumberCount).
 		Int("prefixCount", m.PrefixCount).
-		Msg("initialized places")
+		Msg("places")
 
 	// register places routes
 	internal.NewPlacesAPI(p).RegisterRoutes(router)
 
 	// version
 	router.GET("/version", getVersion)
-
-	// redirect / to /web
-	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.Redirect(w, r, "/web/", 301)
-	})
 
 	// wrap the router into a logging middleware
 	lmw := loggerMiddleware{router}
