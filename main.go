@@ -49,6 +49,7 @@ func main() {
 	log.Info().
 		Bool("debug", viper.GetBool("DEBUG")).
 		Str("port", viper.GetString("PORT")).
+		Bool("spec", viper.GetBool("SPEC")).
 		Bool("demo", viper.GetBool("DEMO")).
 		Int("maxPrefixLength", viper.GetInt("MAX_PREFIX_LENGTH")).
 		Int("minCompletionCount", viper.GetInt("MIN_COMPLETION_COUNT")).
@@ -94,6 +95,14 @@ func viperSetup() {
 	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
 	viper.SetDefault("HOUSE_NUMBERS_CSV", "_data/housenumbers.csv")
 
+	// set defaults for whether to enable swagger-docs depending on DEBUG
+	if viper.GetBool("DEBUG") {
+		viper.SetDefault("SPEC", true)
+	} else {
+		viper.SetDefault("SPEC", false)
+	}
+
+	// set defaults for whether to enable demo website depending on DEBUG
 	if viper.GetBool("DEBUG") {
 		viper.SetDefault("DEMO", true)
 	} else {
@@ -115,7 +124,9 @@ func (app *App) Initialize() error {
 	}
 
 	// register swagger routes
-	router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
+	if viper.GetBool("SPEC") {
+		router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
+	}
 
 	// register demo routes and redirect (if desired)
 	if viper.GetBool("DEMO") {

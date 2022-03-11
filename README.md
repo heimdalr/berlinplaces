@@ -101,6 +101,9 @@ which will result in something like:
 
 The API spec is thereby served at <http://localhost:8080/swagger>.
 
+Note, whether the API spec is being served is controlled via the environment variable `PLACES_SPEC` (and defaults
+depend on `PLACES_DEBUG`).
+
 ### DEMO
 
 To see a demo website using the API for a location / address input, surf to <http://localhost:8080/demo>.

@@ -65,8 +65,9 @@ COPY _data/housenumbers.csv ./_data/housenumbers.csv
 # use api user
 USER api:api
 
-#ENV PLACES_PORT=8080
 ENV PLACES_DEBUG=false
+#ENV PLACES_PORT=8080
 #ENV PLACES_DEMO=false
+#ENV PLACES_SPEC=false
 
 CMD [ "/places/places" ]
