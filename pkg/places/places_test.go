@@ -3,6 +3,7 @@ package places_test
 import (
 	"context"
 	"github.com/heimdalr/berlinplaces/pkg/places"
+	"github.com/spf13/viper"
 	"strings"
 	"testing"
 )
@@ -28,16 +29,17 @@ restaurant,Strandlust,1,3a,12527,52.3762307,13.657224
 street_id,housenumber,postcode,lat,lon
 1,1,12524,52.4127212,13.5714066
 `
+	viper.SetDefault("MAX_PREFIX_LENGTH", 4)
+	viper.SetDefault("MIN_COMPLETION_COUNT", 10)
+	viper.SetDefault("LEV_MINIMUM", 4)
 
 	p, err := places.NewPlaces(
 		strings.NewReader(districtsCSV),
 		strings.NewReader(streetsCSV),
 		strings.NewReader(locationsCSV),
 		strings.NewReader(housenumbersCSV),
-		8,
-		5,
-		4,
 	)
+
 	if err != nil {
 		t.Fatal(err)
 	}
