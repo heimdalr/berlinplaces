@@ -56,7 +56,7 @@ COPY --from=buildstage /builddir/places ./
 
 # copy statics
 COPY swagger/ ./swagger/
-COPY web/ ./web/
+COPY demo/ ./demo/
 COPY _data/districts.csv ./_data/districts.csv
 COPY _data/streets.csv ./_data/streets.csv
 COPY _data/locations.csv ./_data/locations.csv
@@ -66,6 +66,7 @@ COPY _data/housenumbers.csv ./_data/housenumbers.csv
 USER api:api
 
 #ENV PLACES_PORT=8080
-ENV PLACES_MODE="release"
+ENV PLACES_DEBUG=false
+#ENV PLACES_DEMO=false
 
 CMD [ "/places/places" ]

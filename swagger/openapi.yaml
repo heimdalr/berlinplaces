@@ -4,7 +4,7 @@ info:
   version: 0.0.1
   description: |
     **autocomplete** and **geocode** locations (i.e. bars, pubs, hotels), streets (i.e. street names) and buildings 
-    (i.e. housenumbers in streets) (see [example](/web))
+    (i.e. housenumbers in streets) (see [example](/demo))
 tags:
   - name: version
   - name: metrics

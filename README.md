@@ -39,7 +39,7 @@ go build -o berlinplaces .
 
 and surf to:
 
-- <http://localhost:8080/web> - demo website or
+- <http://localhost:8080/demo> - demo website or
 - <http://localhost:8080/swagger> - the OpenAPI spec
 
 alternatively run (e.g.): 

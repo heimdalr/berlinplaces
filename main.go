@@ -117,11 +117,11 @@ func (app *App) Initialize() error {
 	// register swagger routes
 	router.ServeFiles("/swagger/*filepath", http.Dir("swagger"))
 
-	// register web routes and redirect (if desired)
+	// register demo routes and redirect (if desired)
 	if viper.GetBool("DEMO") {
-		router.ServeFiles("/web/*filepath", http.Dir("web"))
+		router.ServeFiles("/demo/*filepath", http.Dir("demo"))
 		router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-			http.Redirect(w, r, "/web/", 301)
+			http.Redirect(w, r, "/demo/", 301)
 		})
 	}
 

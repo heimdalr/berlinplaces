@@ -7,7 +7,7 @@
 !pkg
 !.git
 !swagger
-!web
+!demo
 !_data/districts.csv
 !_data/streets.csv
 !_data/locations.csv
