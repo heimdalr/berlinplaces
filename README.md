@@ -39,7 +39,7 @@ cd berlinplaces
 
 ### Build and Run
 
-Inside the directory `berlinplaces`, build and run via Docker:
+Inside the directory (`berlinplaces`), build and run via Docker:
 
 ~~~~bash
 docker build -t berlinplaces .
