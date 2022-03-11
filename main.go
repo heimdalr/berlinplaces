@@ -87,8 +87,10 @@ func viperSetup() {
 	viper.SetDefault("DEBUG", true)
 	viper.SetDefault("PORT", "8080")
 
-	viper.SetDefault("MAX_PREFIX_LENGTH", 6)
-	viper.SetDefault("MIN_COMPLETION_COUNT", 6)
+	// length of prefixes to precompute
+	// be careful this is close to exponential (2 => ~500, 3 => ~3000, 4 => ~10000 prefixes)
+	viper.SetDefault("MAX_PREFIX_LENGTH", 4)
+	viper.SetDefault("MIN_COMPLETION_COUNT", 10)
 	viper.SetDefault("LEV_MINIMUM", 0)
 
 	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root

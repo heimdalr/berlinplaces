@@ -7,6 +7,7 @@ import (
 	"github.com/agnivade/levenshtein"
 	"github.com/dgraph-io/ristretto"
 	"github.com/gocarina/gocsv"
+	"github.com/rs/zerolog/log"
 	"io"
 	"sort"
 	"strings"
@@ -16,10 +17,14 @@ import (
 	"unicode"
 )
 
-// TODO: TTL seems to not work
 // time to wait before invalidating a cache entry (need to invalidate cache
 // entries to get relevance updates to bubble in)
-var cacheTTL = 60 * time.Second
+var cacheTTL = 10 * time.Second
+
+// distanceCut is used in result ranking. distanceCut is the delta in distances
+// to ignore in favor of relevance (unless one of the results has a distance of
+// 0).
+const distanceCut = 4
 
 type district struct {
 	Postcode string `csv:"postcode"`
@@ -359,6 +364,9 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 		NumCounters: 1e6,     // number of keys to track frequency of (1M).
 		MaxCost:     1 << 30, // maximum cost of cache (1GB).
 		BufferItems: 64,      // number of keys per Get buffer.
+		OnEvict: func(item *ristretto.Item) {
+			log.Debug().Msgf("evicting %v", item.Value)
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize cache: %w", err)
@@ -381,8 +389,80 @@ func sanitizeString(s string) string {
 	return strings.ToLower(strings.Trim(s, " -"))
 }
 
-// placeLesser compares two places and returns true if the first is less (i.e. to
-// be higher ranked in a list) than the second one.
+// resultRanking compares two levenshtein results wrt. distance, relevance, class, and (in case of streets) length.
+// resultRanking returns true, if the first place should be ranked higher than the second one. resultRanking should
+// be used in sorting slices (analog to the lesser function) sorting higher ranks to the beginning.
+func resultRanking(i, j *result) bool {
+
+	di := i.Distance
+	dj := j.Distance
+
+	// If one of the distances is 0 (i.e. an exact match) but not both rank the exact match higher.
+	if di != dj {
+		if di == 0 {
+			return true
+		}
+		if dj == 0 {
+			return false
+		}
+	}
+
+	// If none of the results is an exact match but the delta in distances is greater than distanceCut
+	// the one with the smaller distance will be ranked higher.
+	distanceDelta := abs(di - dj)
+	if distanceDelta > distanceCut {
+		if di < dj {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	pi := i.Place
+	pj := j.Place
+
+	// As there is no exact match and the delta in distances is within distanceCut,
+	// rank by relevance (if different).
+	if pi.Relevance != pj.Relevance {
+		if pi.Relevance > pj.Relevance {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// relevance is equal, come back to distances
+	if di != dj {
+		if di < dj {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// results have same distance and relevance, rank streets over locations
+	if pi.Class != pj.Class {
+		if pi.Class == streetClass {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	// if streets, less by longer length (by the above clause, types must be equal)
+	if pi.Class == streetClass {
+		if pi.Length > pj.Length {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	return false
+}
+
+// placeLesser compares two places wrt. string length and lexical order. placeLesser return true, if the first place
+// is less than the second one.
 func placeLesser(i, j *place) bool {
 
 	// less by character length
@@ -401,34 +481,6 @@ func placeLesser(i, j *place) bool {
 		} else {
 			return false
 		}
-	}
-
-	// if relevance differs, less by greater relevance
-	if i.Relevance != j.Relevance {
-		if i.Relevance > j.Relevance {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// if types differ streets over locations
-	if i.Class != j.Class {
-		if i.Class == streetClass {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	// if streets, less by longer length (by the above clause, types must be equal)
-	if i.Class == streetClass {
-		if i.Length > j.Length {
-			return true
-		} else {
-			return false
-		}
-
 	}
 
 	// defaults
@@ -629,42 +681,6 @@ func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *
 	return nil
 }
 
-func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
-
-	// for each place compute the Levenshtein-Distance between its simple name and the given simple input
-	results := make([]*result, len(places))
-	for i, p := range places {
-		results[i] = &result{
-			Distance: levenshtein.ComputeDistance(simpleInput, p.simpleName),
-			Place:    p,
-		}
-	}
-
-	// sort the completions slice by Levenshtein-Distance and then lesser function
-	sort.Slice(results, func(i, j int) bool {
-		di := results[i].Distance
-		dj := results[j].Distance
-		return di < dj || (di == dj && placeLesser(results[i].Place, results[j].Place))
-	})
-
-	// compute the number of completions to return (i.e. all exact matches filled up to minCompletionCount)
-	count := min(bp.minCompletionCount, len(results))
-	for i := count; i < len(results); i++ {
-		if results[i].Place.simpleName == simpleInput {
-
-			// we are past minCompletionCount but still have an exact match, therefore add it
-			count += 1
-		} else {
-
-			// as results are ordered by distance, we can break here
-			break
-		}
-	}
-
-	// return the completions
-	return results[:count]
-}
-
 // updateRelevance increases the relevance for each exact match in the results
 // slice and returns a slice containing the updated elements (if any).
 func (bp *Places) updateRelevance(results []*result, simpleInput string) []*place {
@@ -732,11 +748,38 @@ func (bp *Places) updateCompletions(updatedPlaces []*place) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
+
+	// for each place compute the Levenshtein-Distance between its simple name and the given simple input
+	results := make([]*result, len(places))
+	for i, p := range places {
+		results[i] = &result{
+			Distance: levenshtein.ComputeDistance(simpleInput, p.simpleName),
+			Place:    p,
+		}
 	}
-	return b
+
+	// sort results via place ranking.
+	sort.Slice(results, func(i, j int) bool {
+		return resultRanking(results[i], results[j])
+	})
+
+	// compute the number of completions to return (i.e. all exact matches filled up to minCompletionCount)
+	count := min(bp.minCompletionCount, len(results))
+	for i := count; i < len(results); i++ {
+		if results[i].Place.simpleName == simpleInput {
+
+			// we are past minCompletionCount but still have an exact match, therefore add it
+			count += 1
+		} else {
+
+			// as results are ordered by distance, we can break here
+			break
+		}
+	}
+
+	// return the completions
+	return results[:count]
 }
 
 // deDuplicate removes duplicate places.
@@ -753,4 +796,19 @@ func deDuplicate(results []*place) []*place {
 	}
 
 	return places
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// abs returns the absolute value of x.
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
