@@ -20,7 +20,7 @@ Thus here it is, berlinplaces is:
 - free: it's here and OSS
 - latency: basic tests show ~200µs without typos and ~12ms with early typos (if completed first time)
 - hit rate: berlinplaces uses lookup tables for speed and Levenshtein for typos
-- slim and easy: 25MB Docker image (incl. REST-server, OSM-data, swagger-docs and example website) 
+- slim and easy: 35MB Docker image (incl. (REST-) server, OSM-data (!), swagger-docs and demo website) 
 
 The demo (see below) looks like:
 
