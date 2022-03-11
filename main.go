@@ -7,7 +7,6 @@ import (
 	"github.com/heimdalr/berlinplaces/internal"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"

@@ -7,7 +7,6 @@ require (
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/mattn/go-sqlite3 v1.14.11
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/viper v1.10.1
 	github.com/urfave/negroni v1.0.0
