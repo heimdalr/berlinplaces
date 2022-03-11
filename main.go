@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -120,6 +121,7 @@ func (app *App) Initialize() error {
 	// our panic handler
 	router.PanicHandler = func(w http.ResponseWriter, r *http.Request, params interface{}) {
 		log.Error().Msgf("Caught panic: %v", params)
+		log.Debug().Msgf("Stacktrace: %s", debug.Stack())
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
