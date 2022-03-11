@@ -39,7 +39,7 @@ done
 export PGPASSWORD="$(docker exec -it ${CONTAINER_NAME} /bin/bash -c 'echo -n $NOMINATIM_PASSWORD')"
 
 # create a (tmp) table with desired data
-#psql -h localhost -U nominatim -d nominatim -a -f ${SQL_FILE}
+psql -h localhost -U nominatim -d nominatim -a -f ${SQL_FILE}
 
 # dump the (tmp) table to a CSV file
 psql -h localhost -U nominatim -d nominatim -c "\COPY districts_dump TO ${CSV_FILE_DISTRICTS} CSV HEADER;"
