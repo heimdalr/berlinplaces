@@ -633,6 +633,9 @@ func (bp *Places) updateCompletions(updatedPlaces []*place) {
 			}
 		}
 
+		bp.prefixMap[prefixStr].places = newPlaces
+		bp.prefixMap[prefixStr].completions = newCompletions
+
 	}
 }
 
