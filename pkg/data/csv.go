@@ -20,6 +20,7 @@ func normalizer(s string) string {
 	return strings.Trim(strings.ToLower(s), "_")
 }
 
+// Get implements the Provider interface for CSVProvider.
 func (p CSVProvider) Get() (*Data, error) {
 
 	gocsv.SetHeaderNormalizer(normalizer)
@@ -47,6 +48,7 @@ func (p CSVProvider) Get() (*Data, error) {
 	return &d, nil
 }
 
+// unmarshall unmarshalls a single file.
 func unmarshall(fileName string, data interface{}) error {
 
 	// open the CSV file
