@@ -2,13 +2,18 @@ package places_test
 
 import (
 	"context"
+	"fmt"
+	"github.com/gocarina/gocsv"
+	"github.com/heimdalr/berlinplaces/pkg/data"
 	"github.com/heimdalr/berlinplaces/pkg/places"
-	"github.com/spf13/viper"
 	"strings"
 	"testing"
 )
 
-func TestPlaces_query(t *testing.T) {
+type testProvider struct{}
+
+func (_ testProvider) Get() (*data.Data, error) {
+
 	districtsCSV := `
 postcode,csvDistrict
 12524,Treptow-Köpenick
@@ -29,20 +34,45 @@ restaurant,Strandlust,1,3a,12527,52.3762307,13.657224
 street_id,housenumber,postcode,lat,lon
 1,1,12524,52.4127212,13.5714066
 `
-	viper.SetDefault("MAX_PREFIX_LENGTH", 4)
-	viper.SetDefault("MIN_COMPLETION_COUNT", 10)
-	viper.SetDefault("LEV_MINIMUM", 4)
 
-	p, err := places.NewPlaces(
-		strings.NewReader(districtsCSV),
-		strings.NewReader(streetsCSV),
-		strings.NewReader(locationsCSV),
-		strings.NewReader(housenumbersCSV),
-	)
+	gocsv.SetHeaderNormalizer(func(s string) string {
+		return strings.Trim(strings.ToLower(s), "_")
+	})
 
-	if err != nil {
-		t.Fatal(err)
+	d := data.Data{}
+
+	jobs := []struct {
+		csvData string
+		data    interface{}
+	}{
+		{districtsCSV, &d.Districts},
+		{streetsCSV, &d.Streets},
+		{locationsCSV, &d.Locations},
+		{housenumbersCSV, &d.HouseNumbers},
 	}
+
+	for _, j := range jobs {
+
+		// unmarshall into given interface
+		err := gocsv.Unmarshal(strings.NewReader(j.csvData), j.data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshall data: %w", err)
+		}
+
+	}
+
+	return &d, nil
+}
+
+func TestPlaces_query(t *testing.T) {
+
+	config := places.DefaultConfig
+	config.DataProvider = testProvider{}
+	p, err := config.NewPlaces()
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to init places: %w", err))
+	}
+
 	tests := []struct {
 		name string
 		text string

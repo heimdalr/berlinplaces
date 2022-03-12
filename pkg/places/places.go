@@ -45,6 +45,9 @@ func (c Config) NewPlaces() (*Places, error) {
 	// basic init
 	places := Places{config: &c, metrics: &Metrics{}}
 
+	if c.DataProvider == nil {
+		return nil, fmt.Errorf("no data provider configured")
+	}
 	loaded, err := c.DataProvider.Get()
 	if err != nil {
 		return nil, err
