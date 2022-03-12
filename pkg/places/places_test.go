@@ -64,7 +64,7 @@ street_id,housenumber,postcode,lat,lon
 	return &d, nil
 }
 
-func TestPlaces_query(t *testing.T) {
+func TestPlaces_GetCompletions(t *testing.T) {
 
 	config := places.DefaultConfig
 	config.DataProvider = testProvider{}

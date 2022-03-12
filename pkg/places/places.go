@@ -82,7 +82,10 @@ func (c Config) NewPlaces() (*Places, error) {
 
 	// extend places map by locations (assigning IDs, linking street-places and districts)
 	for _, l := range loaded.Locations {
-		streetPlace := places.placesMap[streetID2placeID[l.StreetID]]
+		var streetPlace *Place
+		if streetPlaceID, ok := streetID2placeID[l.StreetID]; ok {
+			streetPlace = places.placesMap[streetPlaceID]
+		}
 		p := Place{
 			ID:          placeID,
 			Class:       Location,
@@ -103,20 +106,24 @@ func (c Config) NewPlaces() (*Places, error) {
 
 	// extend places map by house numbers (assigning IDs, linking street-places and districts)
 	for _, h := range loaded.HouseNumbers {
-		streetPlace := places.placesMap[streetID2placeID[h.StreetID]]
-		p := Place{
-			ID:          placeID,
-			Class:       HouseNumber,
-			Street:      streetPlace,
-			HouseNumber: h.HouseNumber,
-			District:    districtMap[h.Postcode],
-			Lat:         h.Lat,
-			Lon:         h.Lon,
+		var streetPlace *Place
+		if streetPlaceID, ok := streetID2placeID[h.StreetID]; ok {
+			streetPlace = places.placesMap[streetPlaceID]
+			p := Place{
+				ID:          placeID,
+				Class:       HouseNumber,
+				Street:      streetPlace,
+				HouseNumber: h.HouseNumber,
+				District:    districtMap[h.Postcode],
+				Lat:         h.Lat,
+				Lon:         h.Lon,
+			}
+			places.placesMap[placeID] = &p
+			streetPlace.houseNumbers = append(streetPlace.houseNumbers, &p)
+			placeID += 1
+			places.metrics.HouseNumberCount += 1
+
 		}
-		places.placesMap[placeID] = &p
-		streetPlace.houseNumbers = append(streetPlace.houseNumbers, &p)
-		placeID += 1
-		places.metrics.HouseNumberCount += 1
 	}
 
 	// collect streets and locations
