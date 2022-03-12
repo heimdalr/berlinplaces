@@ -59,6 +59,15 @@ stop_image:
 	docker stop berlinplaces 2>/dev/null || true
 	docker rm berlinplaces 2>/dev/null || true
 
+# ask for a version / tag to set and then update openapi.yaml, tag and push the tag
+release:
+	@read -p "tag (current: \"${BUILD_VERSION}\"): " tag && \
+	sed -i "/info/,/tags/ s/[0-9]\+\.[0-9]\+\.[0-9]\+/$$tag/" swagger/openapi.yaml && \
+	git add swagger/openapi.yaml && \
+	git commit -m "bumped version to v$$tag" && \
+	git tag -a "v$$tag" -m "v$$tag"
+
+
 start_nominatim:
 	docker run --rm -d --shm-size=8g \
         -e PBF_URL=https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf \
