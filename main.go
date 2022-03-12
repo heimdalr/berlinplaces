@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/heimdalr/berlinplaces/internal"
+	"github.com/heimdalr/berlinplaces/pkg/data"
 	"github.com/heimdalr/berlinplaces/pkg/places"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
-	"github.com/urfave/negroni"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -26,12 +24,12 @@ const viperEnvPrefix = "PLACES"
 var buildVersion = "to be set by linker"
 var buildGitHash = "to be set by linker"
 
-// The App type.
-type App struct {
-	Server http.Server
+// The application type.
+type application struct {
+	http.Server
 }
 
-// main function to boot up everything.
+// main.
 func main() {
 
 	// get Environment variables
@@ -54,14 +52,14 @@ func main() {
 		Msg("config")
 
 	// initialize the app
-	var app App
-	err := app.Initialize()
+	var app application
+	err := app.initialize()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize app")
 	}
 
 	// run the app
-	app.Run()
+	app.run()
 
 	// wait for an interrupt
 	quit := make(chan os.Signal, 1)
@@ -69,7 +67,7 @@ func main() {
 	<-quit
 
 	// shutdown the app
-	app.Shutdown()
+	app.shutdown()
 }
 
 // Viper setup.
@@ -83,20 +81,18 @@ func viperSetup() {
 	viper.SetDefault("DEBUG", true)
 	viper.SetDefault("PORT", "8080")
 
-	// length of prefixes to precompute
-	// be careful this is close to exponential (2 => ~500, 3 => ~3000, 4 => ~10000 prefixes)
-	viper.SetDefault("MAX_PREFIX_LENGTH", 4)
-	viper.SetDefault("MIN_COMPLETION_COUNT", 10)
-	viper.SetDefault("LEV_MINIMUM", 4)
+	// for places config set env defaults based on pkg defaults
+	c := places.DefaultConfig
+	viper.SetDefault("MAX_PREFIX_LENGTH", c.MaxPrefixLength)
+	viper.SetDefault("MIN_COMPLETION_COUNT", c.MinCompletionCount)
+	viper.SetDefault("MIN_LEV", c.MinLev)
+	viper.SetDefault("DISTANCE_CUT", c.DistanceCut)
+	viper.SetDefault("CACHE_TTL", c.CacheTTL)
 
 	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root
 	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
 	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
 	viper.SetDefault("HOUSE_NUMBERS_CSV", "_data/housenumbers.csv")
-
-	viper.SetDefault("RANKING_DISTANCE_CUT", 4) // distanceCut is the delta in distances to ignore in favor of relevance
-
-	viper.SetDefault("CACHE_TTL", 300) // number of seconds before evicting cache entries
 
 	// set defaults for whether to enable swagger-docs depending on DEBUG
 	if viper.GetBool("DEBUG") {
@@ -114,13 +110,13 @@ func viperSetup() {
 
 }
 
-// Initialize the application.
-func (app *App) Initialize() error {
+// initialize the application.
+func (app *application) initialize() error {
 
 	// initialize a router
 	router := httprouter.New()
 
-	// our panic handler
+	// our panic Handler
 	router.PanicHandler = func(w http.ResponseWriter, r *http.Request, params interface{}) {
 		log.Error().Msgf("Caught panic: %v", params)
 		log.Debug().Msgf("Stacktrace: %s", debug.Stack())
@@ -140,32 +136,56 @@ func (app *App) Initialize() error {
 		})
 	}
 
-	// initialize places
-	p, err := initPlaces()
-	if err != nil {
-		return err
+	// init the CSV data provider
+	dataProvider := data.CSVProvider{
+		DistrictsFile:    viper.GetString("DISTRICTS_CSV"),
+		StreetsFile:      viper.GetString("STREETS_CSV"),
+		LocationsFile:    viper.GetString("LOCATIONS_CSV"),
+		HouseNumbersFile: viper.GetString("HOUSE_NUMBERS_CSV"),
 	}
-	m := p.Metrics()
+
+	// places configuration
+	placesConfig := places.Config{
+		MaxPrefixLength:    viper.GetInt("MAX_PREFIX_LENGTH"),
+		MinCompletionCount: viper.GetInt("MIN_COMPLETION_COUNT"),
+		MinLev:             viper.GetInt("MIN_LEV"),
+		DistanceCut:        viper.GetInt("DISTANCE_CUT"),
+		CacheTTL:           viper.GetDuration("CACHE_TTL"),
+		DataProvider:       dataProvider,
+	}
+
+	// initialize (berlin) places
+	p, err := placesConfig.NewPlaces()
+	if err != nil {
+		panic(fmt.Errorf("failed to initialize places: %w", err))
+	}
+
+	// log basic stats about places
+	metrics := p.Metrics()
 	log.Info().
-		Int("streetCount", m.StreetCount).
-		Int("locationCount", m.LocationCount).
-		Int("houseNumberCount", m.HouseNumberCount).
-		Int("prefixCount", m.PrefixCount).
+		Int("streetCount", metrics.StreetCount).
+		Int("locationCount", metrics.LocationCount).
+		Int("houseNumberCount", metrics.HouseNumberCount).
+		Int("prefixCount", metrics.PrefixCount).
 		Msg("places")
 
 	// register places routes
-	internal.NewPlacesAPI(p).RegisterRoutes(router)
+	placesAPI := internal.PlacesAPI{Places: p}
+	router.GET("/places", placesAPI.GetCompletions)
+	router.GET("/places/:placeID", placesAPI.GetPlace)
+	router.GET("/metrics", placesAPI.GetMetrics)
 
 	// version
-	router.GET("/version", getVersion)
+	versionAPI := internal.VersionAPI{Version: buildVersion, Hash: buildGitHash}
+	router.GET("/version", versionAPI.GetVersion)
 
 	// wrap the router into a logging middleware
-	lmw := loggerMiddleware{router}
+	loggingRouter := internal.LoggerMiddleware{Handler: router, Logger: log.Logger}
 
 	// setup HTTP server
 	app.Server = http.Server{
 		Addr:           fmt.Sprintf(":%s", viper.GetString("PORT")),
-		Handler:        lmw,
+		Handler:        loggingRouter,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -174,8 +194,8 @@ func (app *App) Initialize() error {
 	return nil
 }
 
-// Run the application.
-func (app *App) Run() {
+// run the application.
+func (app *application) run() {
 
 	// start the server (in a goroutine)
 	go func() {
@@ -187,8 +207,8 @@ func (app *App) Run() {
 	log.Info().Msgf("listening on http://localhost:%s", strings.TrimLeft(app.Server.Addr, ":"))
 }
 
-// Shutdown the application.
-func (app *App) Shutdown() {
+// shutdown shuts the application down.
+func (app *application) shutdown() {
 
 	// Gracefully shutdown server (in a timeout context).
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -197,91 +217,4 @@ func (app *App) Shutdown() {
 	if err := app.Server.Shutdown(ctx); err != nil {
 		log.Error().Err(err).Msg("server shutdown failed")
 	}
-}
-
-// initPlaces opens the necessary CSV files and initializes places.
-func initPlaces() (*places.Places, error) {
-
-	// open the districts CSV
-	districtsFile, errDF := os.Open(viper.GetString("DISTRICTS_CSV"))
-	if errDF != nil {
-		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errDF)
-	}
-	defer func() {
-		_ = districtsFile.Close()
-	}()
-
-	// open the streets CSV
-	streetsFile, errSF := os.Open(viper.GetString("STREETS_CSV"))
-	if errSF != nil {
-		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errSF)
-	}
-	defer func() {
-		_ = streetsFile.Close()
-	}()
-
-	// open the locations CSV
-	locationsFile, errLF := os.Open(viper.GetString("LOCATIONS_CSV"))
-	if errLF != nil {
-		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errLF)
-	}
-	defer func() {
-		_ = locationsFile.Close()
-	}()
-
-	// open the house numbers CSV
-	houseNumbersFile, errHNF := os.Open(viper.GetString("HOUSE_NUMBERS_CSV"))
-	if errHNF != nil {
-		return nil, fmt.Errorf("failed to open '%s': %w", viper.GetString("CSV"), errHNF)
-	}
-	defer func() {
-		_ = houseNumbersFile.Close()
-	}()
-
-	// initialize places
-	p, err := places.NewPlaces(districtsFile, streetsFile, locationsFile, houseNumbersFile)
-	if err != nil {
-		panic(fmt.Errorf("failed to initialize places: %w", err))
-	}
-
-	return p, nil
-}
-
-// getVersion is the handler for the /version-endpoint.
-func getVersion(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	versionInfo := struct {
-		Version string `json:"version"`
-		Hash    string `json:"hash"`
-	}{buildVersion, buildGitHash}
-	j, err := json.Marshal(versionInfo)
-	if err != nil {
-		panic(fmt.Errorf("failed to marshall version info: %w", err))
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(j)
-	if err != nil {
-		panic(fmt.Errorf("failed to write response body: %w", err))
-	}
-}
-
-// loggerMiddleware a type to implement our logging middleware (around the router).
-type loggerMiddleware struct {
-	handler http.Handler
-}
-
-// ServeHTTP implements the Handler interface for our logging middleware.
-func (lmw loggerMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	t := time.Now()
-	url := *req.URL
-	rw := negroni.NewResponseWriter(w)
-	lmw.handler.ServeHTTP(rw, req)
-	ip, _, _ := net.SplitHostPort(req.RemoteAddr)
-	log.Info().
-		Str("remote", ip).
-		Str("method", req.Method).
-		Str("uri", url.RequestURI()).
-		Int64("µs", time.Since(t).Microseconds()).
-		Int("status", rw.Status()).
-		Int("size", rw.Size()).
-		Msg("request")
 }

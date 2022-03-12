@@ -10,7 +10,7 @@ import (
 
 func TestPlaces_query(t *testing.T) {
 	districtsCSV := `
-postcode,district
+postcode,csvDistrict
 12524,Treptow-Köpenick
 10961,Friedrichshain-Kreuzberg
 `

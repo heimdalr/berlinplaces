@@ -11,24 +11,10 @@ import (
 )
 
 type PlacesAPI struct {
-	places *places.Places
+	*places.Places
 }
 
-// NewPlacesAPI initializes the PlacesAPI.
-func NewPlacesAPI(p *places.Places) PlacesAPI {
-	return PlacesAPI{
-		places: p,
-	}
-}
-
-// RegisterRoutes registers PlacesAPI routes.
-func (api PlacesAPI) RegisterRoutes(router *httprouter.Router) {
-	router.GET("/places", api.getCompletions)
-	router.GET("/places/:placeID", api.getPlace)
-	router.GET("/metrics", api.getMetrics)
-}
-
-func (api PlacesAPI) getCompletions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (placesAPI PlacesAPI) GetCompletions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	// get the search text from the request
 	queryValues := r.URL.Query()
@@ -39,7 +25,7 @@ func (api PlacesAPI) getCompletions(w http.ResponseWriter, r *http.Request, _ ht
 	}
 
 	// get completions
-	results := api.places.GetCompletions(context.Background(), text)
+	results := placesAPI.Places.GetCompletions(context.Background(), text)
 
 	// encode completions
 	j, err := json.Marshal(results)
@@ -53,7 +39,7 @@ func (api PlacesAPI) getCompletions(w http.ResponseWriter, r *http.Request, _ ht
 	}
 }
 
-func (api PlacesAPI) getPlace(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (placesAPI PlacesAPI) GetPlace(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	// parse the place ID
 	placeIDStr := ps.ByName("placeID")
@@ -75,7 +61,7 @@ func (api PlacesAPI) getPlace(w http.ResponseWriter, r *http.Request, ps httprou
 	houseNumber := queryValues.Get("houseNumber")
 
 	// get the place
-	p := api.places.GetPlace(context.Background(), placeID, houseNumber)
+	p := placesAPI.Places.GetPlace(context.Background(), placeID, houseNumber)
 	if p == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -93,8 +79,8 @@ func (api PlacesAPI) getPlace(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 }
 
-func (api PlacesAPI) getMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	m := api.places.Metrics()
+func (placesAPI PlacesAPI) GetMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	m := placesAPI.Places.Metrics()
 	j, err := json.Marshal(m)
 	if err != nil {
 		panic(fmt.Errorf("failed to marshall metrics: %w", err))

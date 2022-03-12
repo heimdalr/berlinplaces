@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"github.com/agnivade/levenshtein"
 	"github.com/dgraph-io/ristretto"
-	"github.com/gocarina/gocsv"
+	"github.com/heimdalr/berlinplaces/pkg/data"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
-	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -18,295 +16,73 @@ import (
 	"unicode"
 )
 
-type district struct {
-	Postcode string `csv:"postcode"`
-	District string `csv:"district"`
-}
-
-type street struct {
-	ID       int     `csv:"id"`
-	Name     string  `csv:"name"`
-	Cluster  string  `csv:"cluster"`
-	Postcode string  `csv:"postcode"`
-	Lat      float64 `csv:"lat"`
-	Lon      float64 `csv:"lon"`
-	Length   int32   `csv:"length"`
-}
-
-type location struct {
-	Type        string  `csv:"type"`
-	Name        string  `csv:"name"`
-	StreetID    int     `csv:"street_id"`
-	HouseNumber string  `csv:"house_number"`
-	Postcode    string  `csv:"postcode"`
-	Lat         float64 `csv:"lat"`
-	Lon         float64 `csv:"lon"`
-}
-
-type houseNumber struct {
-	StreetID    int     `csv:"street_id"`
-	HouseNumber string  `csv:"house_number"`
-	Postcode    string  `csv:"postcode"`
-	Lat         float64 `csv:"lat"`
-	Lon         float64 `csv:"lon"`
-}
-
-type PlaceClass int
-
-const (
-	streetClass = iota
-	locationClass
-	houseNumberClass
-)
-
-func (pc PlaceClass) String() string {
-	return [...]string{"street", "location", "houseNumber"}[pc]
-}
-
-func (pc *PlaceClass) MarshalJSON() ([]byte, error) {
-	return json.Marshal(pc.String())
-}
-
-type place struct {
-	ID           int
-	Class        PlaceClass
-	Type         string
-	Name         string
-	cluster      string
-	Street       *place // in case of a location or a house number, this links (up) to the street
-	HouseNumber  string
-	District     *district // this links to the postcode and district
-	Lat          float64
-	Lon          float64
-	Length       int32
-	Relevance    uint64
-	simpleName   string
-	houseNumbers []*place // in case of a street, this links (down) to associated house numbers
-	locations    []*place // in case of a street, this links (down) to associated locations
-}
-
-func (p *place) MarshalJSON() ([]byte, error) {
-	if p.Class == streetClass {
-		return json.Marshal(&struct {
-			ID        int        `json:"id"`
-			Class     PlaceClass `json:"class"`
-			Name      string     `json:"name"`
-			Postcode  string     `json:"postcode"`
-			District  string     `json:"district"`
-			Length    int32      `json:"length,omitempty"`
-			Lat       float64    `json:"lat"`
-			Lon       float64    `json:"lon"`
-			Relevance uint64     `json:"relevance"`
-		}{
-			ID:        p.ID,
-			Class:     p.Class,
-			Name:      p.Name,
-			Postcode:  p.District.Postcode,
-			District:  p.District.District,
-			Length:    p.Length,
-			Lat:       p.Lat,
-			Lon:       p.Lon,
-			Relevance: p.Relevance,
-		})
-	}
-	if p.Class == locationClass {
-		return json.Marshal(&struct {
-			ID          int        `json:"id"`
-			Class       PlaceClass `json:"class"`
-			Type        string     `json:"type"`
-			Name        string     `json:"name"`
-			Street      string     `json:"street"`
-			StreetID    int        `json:"streetID"`
-			HouseNumber string     `json:"houseNumber"`
-			Postcode    string     `json:"postcode"`
-			District    string     `json:"district"`
-			Lat         float64    `json:"lat"`
-			Lon         float64    `json:"lon"`
-			Relevance   uint64     `json:"relevance"`
-		}{
-			ID:          p.ID,
-			Class:       p.Class,
-			Type:        p.Type,
-			Name:        p.Name,
-			Street:      p.Street.Name,
-			StreetID:    p.Street.ID,
-			HouseNumber: p.HouseNumber,
-			Postcode:    p.District.Postcode,
-			District:    p.District.District,
-			Lat:         p.Lat,
-			Lon:         p.Lon,
-			Relevance:   p.Relevance,
-		})
-	}
-	if p.Class == houseNumberClass {
-		return json.Marshal(&struct {
-			ID          int        `json:"id"`
-			Class       PlaceClass `json:"class"`
-			Street      string     `json:"street"`
-			StreetID    int        `json:"streetID"`
-			HouseNumber string     `json:"houseNumber"`
-			Postcode    string     `json:"postcode"`
-			District    string     `json:"district"`
-			Lat         float64    `json:"lat"`
-			Lon         float64    `json:"lon"`
-			Relevance   uint64     `json:"relevance"`
-		}{
-			ID:          p.ID,
-			Class:       p.Class,
-			Street:      p.Street.Name,
-			StreetID:    p.Street.ID,
-			HouseNumber: p.HouseNumber,
-			Postcode:    p.District.Postcode,
-			District:    p.District.District,
-			Lat:         p.Lat,
-			Lon:         p.Lon,
-			Relevance:   p.Relevance,
-		})
-	}
-	return []byte{}, fmt.Errorf("unexpected class '%s'", p.Type)
-}
-
-type result struct {
-	Distance int    `json:"distance"`
-	Place    *place `json:"place"`
-}
-
-// prefix represents precomputed completions and places for a given prefix
-type prefix struct {
-
-	// completions (i.e. places to suggest for this prefix (only if < maxPrefixLength)
-	completions []*result
-
-	// places covered by this prefix (if < maxPrefixLength those are the places in the completions)
-	places []*place
-}
-
+// Places is where all happens.
 type Places struct {
 
-	// maximum prefix length
-	maxPrefixLength int
+	// the places config
+	config *Config
 
-	// the minimum number of completions to compute
-	minCompletionCount int
-
-	// the minimum input length before doing Levenshtein
-	levMinimum int
-
-	// distanceCut is used in result ranking. distanceCut is the delta in distances
-	// to ignore in favor of relevance (unless one of the results has a distance of
-	// 0).
-	distanceCut int
-
-	// duration to wait before evicting cache entries
-	cacheTTLSeconds int
-	cacheTTL        time.Duration
+	// metrics collected while running
+	m       sync.RWMutex
+	metrics *Metrics
 
 	// all places
-	placesMap map[int]*place
+	placesMap map[int]*Place
 
 	// a list of streets and locations (needed for completion)
-	streetsAndLocations []*place
+	streetsAndLocations []*Place
 
 	// a map associating places with prefixes.
 	prefixMap map[string]*prefix
 
 	// cache for longer prefixes and prefixes with typo
 	cache *ristretto.Cache
-
-	// counts
-	streetCount      int
-	locationCount    int
-	houseNumberCount int
-	prefixCount      int
-
-	// average lookup time
-	m            sync.RWMutex
-	avgQueryTime time.Duration
-	queryCount   int64
 }
 
-type Metrics struct {
-	MaxPrefixLength    int                `json:"maxPrefixLength"`
-	MinCompletionCount int                `json:"minCompletionCount"`
-	LevMinimum         int                `json:"levMinimum"`
-	DistanceCut        int                `json:"distanceCut"`
-	CacheTTL           int                `json:"cacheTTL"`
-	StreetCount        int                `json:"streetCount"`
-	LocationCount      int                `json:"locationCount"`
-	HouseNumberCount   int                `json:"houseNumberCount"`
-	PrefixCount        int                `json:"prefixCount"`
-	CacheMetrics       *ristretto.Metrics `json:"cacheMetrics"`
-	QueryCount         int64              `json:"queryCount"`
-	AvgLookupTime      time.Duration      `json:"avgLookupTime"`
-}
-
-func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader) (*Places, error) {
+// NewPlaces initializes a new Places object.
+func (c Config) NewPlaces() (*Places, error) {
 
 	// basic init
-	cacheTTLSeconds := viper.GetInt("CACHE_TTL")
-	places := Places{
-		maxPrefixLength:    viper.GetInt("MAX_PREFIX_LENGTH"),
-		minCompletionCount: viper.GetInt("MIN_COMPLETION_COUNT"),
-		levMinimum:         viper.GetInt("LEV_MINIMUM"),
-		distanceCut:        viper.GetInt("RANKING_DISTANCE_CUT"),
-		cacheTTLSeconds:    cacheTTLSeconds,
-		cacheTTL:           time.Duration(cacheTTLSeconds) * time.Second,
-	}
+	places := Places{config: &c, metrics: &Metrics{}}
 
-	// unmarshal district list
-	var districtList []*district
-	err := gocsv.Unmarshal(csvDistricts, &districtList)
+	loaded, err := c.DataProvider.Get()
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall districtList CSV data: %w", err)
+		return nil, err
 	}
 
 	// convert district list to map
-	districtMap := make(map[string]*district)
-	for _, d := range districtList {
-		districtMap[d.Postcode] = d
-	}
-
-	// unmarshal street list
-	var streets []*street
-	err = gocsv.Unmarshal(csvStreets, &streets)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall streets CSV data: %w", err)
+	districtMap := make(map[string]*data.District)
+	for _, district := range loaded.Districts {
+		districtMap[district.Postcode] = district
 	}
 
 	// convert street list to place map (reassigning IDs and linking districts)
-	places.placesMap = make(map[int]*place)
+	places.placesMap = make(map[int]*Place)
 	var placeID int
 	var streetID2placeID = make(map[int]int)
-	for _, s := range streets {
-		places.placesMap[placeID] = &place{
+	for _, street := range loaded.Streets {
+		places.placesMap[placeID] = &Place{
 			ID:         placeID,
-			Class:      streetClass,
-			Name:       s.Name,
-			cluster:    s.Cluster,
-			District:   districtMap[s.Postcode],
-			Lat:        s.Lat,
-			Lon:        s.Lon,
-			Length:     s.Length,
-			simpleName: sanitizeString(s.Name),
+			Class:      Street,
+			Name:       street.Name,
+			cluster:    street.Cluster,
+			District:   districtMap[street.Postcode],
+			Lat:        street.Lat,
+			Lon:        street.Lon,
+			Length:     street.Length,
+			simpleName: sanitizeString(street.Name),
 		}
-		streetID2placeID[s.ID] = placeID
+		streetID2placeID[street.ID] = placeID
 		placeID += 1
-		places.streetCount += 1
-	}
-
-	// unmarshal location list
-	var locationList []*location
-	err = gocsv.Unmarshal(csvLocations, &locationList)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall locations CSV data: %w", err)
+		places.metrics.StreetCount += 1
 	}
 
 	// extend places map by locations (assigning IDs, linking street-places and districts)
-	for _, l := range locationList {
+	for _, l := range loaded.Locations {
 		streetPlace := places.placesMap[streetID2placeID[l.StreetID]]
-		p := place{
+		p := Place{
 			ID:          placeID,
-			Class:       locationClass,
+			Class:       Location,
 			Type:        l.Type,
 			Name:        l.Name,
 			Street:      streetPlace,
@@ -319,21 +95,15 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 		places.placesMap[placeID] = &p
 		streetPlace.locations = append(streetPlace.locations, &p)
 		placeID += 1
-		places.locationCount += 1
-	}
-
-	var houseNumberList []*houseNumber
-	err = gocsv.Unmarshal(csvHouseNumbers, &houseNumberList)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall house numbers CSV data: %w", err)
+		places.metrics.LocationCount += 1
 	}
 
 	// extend places map by house numbers (assigning IDs, linking street-places and districts)
-	for _, h := range houseNumberList {
+	for _, h := range loaded.HouseNumbers {
 		streetPlace := places.placesMap[streetID2placeID[h.StreetID]]
-		p := place{
+		p := Place{
 			ID:          placeID,
-			Class:       houseNumberClass,
+			Class:       HouseNumber,
 			Street:      streetPlace,
 			HouseNumber: h.HouseNumber,
 			District:    districtMap[h.Postcode],
@@ -343,14 +113,14 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 		places.placesMap[placeID] = &p
 		streetPlace.houseNumbers = append(streetPlace.houseNumbers, &p)
 		placeID += 1
-		places.houseNumberCount += 1
+		places.metrics.HouseNumberCount += 1
 	}
 
 	// collect streets and locations
-	sl := make([]*place, places.streetCount+places.locationCount)
+	sl := make([]*Place, places.metrics.StreetCount+places.metrics.LocationCount)
 	i := 0
 	for _, p := range places.placesMap {
-		if p.Class != houseNumberClass {
+		if p.Class != HouseNumber {
 			sl[i] = p
 			i += 1
 		}
@@ -364,7 +134,7 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 
 	// compute placesMap
 	places.computePrefixMap()
-	places.prefixCount = len(places.prefixMap)
+	places.metrics.PrefixCount = len(places.prefixMap)
 
 	// initialize cache
 	places.cache, err = ristretto.NewCache(&ristretto.Config{
@@ -380,17 +150,177 @@ func NewPlaces(csvDistricts, csvStreets, csvLocations, csvHouseNumbers io.Reader
 	}
 
 	return &places, nil
-
 }
 
-func (bp *Places) GetCompletions(ctx context.Context, input string) []*result {
+// Config is the configuration for Places.
+type Config struct {
+
+	// MaxPrefixLength is the maximum prefixes length to precompute completions for.
+	MaxPrefixLength int `json:"maxPrefixLength"`
+
+	// MinCompletionCount is the number of completions to return.
+	MinCompletionCount int `json:"minCompletionCount"`
+
+	// MinLev is the minimum input length before doing Levenshtein comparison.
+	MinLev int `json:"minLev"`
+
+	// DistanceCut is used in result ranking. DistanceCut is the delta in distances
+	// to ignore in favor of relevance (unless one of the results has a distance of
+	// 0).
+	DistanceCut int `json:"distanceCut"`
+
+	// Duration to wait before evicting cache entries (in order to consider
+	// potentially changed relevance values).
+	CacheTTL time.Duration `json:"cacheTTL"`
+
+	// The data provider.
+	DataProvider data.Provider
+}
+
+// DefaultConfig is the default configuration for Places.
+var DefaultConfig = &Config{
+	MaxPrefixLength:    4,
+	MinCompletionCount: 5,
+	MinLev:             4,
+	DistanceCut:        4,
+	CacheTTL:           300 * time.Second,
+}
+
+// Metrics is the type to sore metrics.
+type Metrics struct {
+	StreetCount      int           `json:"streetCount"`
+	LocationCount    int           `json:"locationCount"`
+	HouseNumberCount int           `json:"houseNumberCount"`
+	PrefixCount      int           `json:"prefixCount"`
+	QueryCount       int64         `json:"queryCount"`
+	AvgLookupTime    time.Duration `json:"avgLookupTime"`
+}
+
+// Place represents a single place. A place may be a street, a location, or a house number / building).
+type Place struct {
+	ID           int
+	Class        Class
+	Type         string
+	Name         string
+	cluster      string
+	Street       *Place // in case of a location or a house number, this links (up) to the street
+	HouseNumber  string
+	District     *data.District // this links to the postcode and district
+	Lat          float64
+	Lon          float64
+	Length       int
+	Relevance    uint64
+	simpleName   string
+	houseNumbers []*Place // in case of a street, this links (down) to associated house numbers
+	locations    []*Place // in case of a street, this links (down) to associated locations
+}
+
+// MarshalJSON implements the JSON marshaller interface for Places.
+func (p *Place) MarshalJSON() ([]byte, error) {
+
+	// depending on the class we want to render the place slightly in a different way
+	var (
+		street, name     string
+		streetID, length *int
+	)
+	switch p.Class {
+	case Street:
+		name = p.Name
+		length = &p.Length
+	case Location:
+		name = p.Name
+		street = p.Street.Name
+		streetID = &p.Street.ID
+	default: // HouseNumber
+		street = p.Street.Name
+		streetID = &p.Street.ID
+	}
+	return json.Marshal(&struct {
+		ID          int     `json:"id"`
+		Class       string  `json:"class"`
+		Type        string  `json:"type,omitempty"`
+		Name        string  `json:"name"`
+		Street      string  `json:"street,omitempty"`
+		StreetID    *int    `json:"streetID,omitempty"`
+		HouseNumber string  `json:"houseNumber,omitempty"`
+		Postcode    string  `json:"postcode"`
+		District    string  `json:"district"`
+		Length      *int    `json:"length,omitempty"`
+		Lat         float64 `json:"lat"`
+		Lon         float64 `json:"lon"`
+		Relevance   uint64  `json:"relevance"`
+	}{
+		ID:          p.ID,
+		Class:       p.Class.String(),
+		Type:        p.Type,
+		Name:        name,
+		Street:      street,
+		StreetID:    streetID,
+		HouseNumber: p.HouseNumber,
+		Postcode:    p.District.Postcode,
+		District:    p.District.District,
+		Length:      length,
+		Lat:         p.Lat,
+		Lon:         p.Lon,
+		Relevance:   p.Relevance,
+	})
+}
+
+// Result wraps a place.
+type Result struct {
+	Distance int    `json:"distance"`
+	Place    *Place `json:"place"`
+}
+
+// Class enumerates different place types / classes.
+type Class int
+
+const (
+
+	// Street is the place class of streets.
+	Street = iota
+
+	// Location is place class of locations.
+	Location
+
+	// HouseNumber is the place class of house numbers / buildings.
+	HouseNumber
+)
+
+// String implements the stringer interface for Class.
+func (c Class) String() string {
+	return [...]string{"street", "location", "csvHouseNumber"}[c]
+}
+
+// prefix represents precomputed completions and places for a given prefix
+type prefix struct {
+
+	// completions (i.e. places to suggest for this prefix (only if < MaxPrefixLength)
+	completions []*Result
+
+	// places covered by this prefix (if < MaxPrefixLength those are the places in the completions)
+	places []*Place
+}
+
+// Config returns the configuration.
+func (bp *Places) Config() Config {
+	return *bp.config
+}
+
+// Metrics returns current metrics.
+func (bp *Places) Metrics() Metrics {
+	return *bp.metrics
+}
+
+// GetCompletions returns completions for the given input.
+func (bp *Places) GetCompletions(ctx context.Context, input string) []*Result {
 	start := time.Now()
 	r := bp.getCompletions(ctx, input)
 	go bp.updateMetrics(time.Since(start))
 	return r
 }
 
-func (bp *Places) getCompletions(_ context.Context, input string) []*result {
+func (bp *Places) getCompletions(_ context.Context, input string) []*Result {
 
 	// dissect the input
 	simpleInput := sanitizeString(input)
@@ -400,7 +330,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 	// if we have a matching cache entry return it
 	cacheResults, hit := bp.cache.Get(simpleInput)
 	if hit {
-		if results, ok := cacheResults.([]*result); ok {
+		if results, ok := cacheResults.([]*Result); ok {
 
 			// update relevance
 			go bp.updateRelevance(results, simpleInput)
@@ -411,11 +341,11 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 		}
 	}
 
-	// if simpleInput is longer or equal to than maxPrefixLength
-	if inputLength >= bp.maxPrefixLength {
+	// if simpleInput is longer or equal to than MaxPrefixLength
+	if inputLength >= bp.config.MaxPrefixLength {
 
 		// compute the (max) prefix string
-		prefixString := string(runes[:min(len(runes), bp.maxPrefixLength)])
+		prefixString := string(runes[:min(len(runes), bp.config.MaxPrefixLength)])
 
 		// if we have a matching entry in the prefix map
 		if pf, ok := bp.prefixMap[prefixString]; ok {
@@ -429,7 +359,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 				bp.updateRelevance(results, simpleInput)
 
 				// try to cache results (i.e. we extend the prefix map by longer prefixes)
-				bp.cache.SetWithTTL(simpleInput, results, 0, bp.cacheTTL)
+				bp.cache.SetWithTTL(simpleInput, results, 0, bp.config.CacheTTL)
 			}()
 
 			return results
@@ -445,7 +375,7 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 				bp.updateRelevance(results, simpleInput)
 
 				// try to cache results (i.e. we extend the prefix map by long "faulty" prefixes)
-				bp.cache.SetWithTTL(simpleInput, results, 0, bp.cacheTTL)
+				bp.cache.SetWithTTL(simpleInput, results, 0, bp.config.CacheTTL)
 			}()
 
 			return results
@@ -463,8 +393,8 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 		return pf.completions
 	}
 
-	// there is no matching prefix, but above levMinimum
-	if inputLength >= bp.levMinimum {
+	// there is no matching prefix, but above MinLev
+	if inputLength >= bp.config.MinLev {
 
 		// do levenshtein on all streets and location
 		results := bp.levenshtein(bp.streetsAndLocations, simpleInput)
@@ -475,24 +405,24 @@ func (bp *Places) getCompletions(_ context.Context, input string) []*result {
 			bp.updateRelevance(results, simpleInput)
 
 			// try to cache results
-			bp.cache.SetWithTTL(simpleInput, results, 0, bp.cacheTTL)
+			bp.cache.SetWithTTL(simpleInput, results, 0, bp.config.CacheTTL)
 		}()
 
 		return results
 	}
 
 	// as a last resort return the empty list
-	return []*result{}
+	return []*Result{}
 }
 
-func (bp *Places) GetPlace(ctx context.Context, placeID int, houseNumber string) *place {
+func (bp *Places) GetPlace(ctx context.Context, placeID int, houseNumber string) *Place {
 	start := time.Now()
 	p := bp.getPlace(ctx, placeID, houseNumber)
 	go bp.updateMetrics(time.Since(start))
 	return p
 }
 
-func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *place {
+func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *Place {
 	if p, ok := bp.placesMap[placeID]; ok {
 		if houseNumber == "" {
 			return p
@@ -508,31 +438,12 @@ func (bp *Places) getPlace(_ context.Context, placeID int, houseNumber string) *
 	return nil
 }
 
-func (bp *Places) Metrics() Metrics {
-	bp.m.RLock()
-	defer bp.m.RUnlock()
-	return Metrics{
-		MaxPrefixLength:    bp.maxPrefixLength,
-		MinCompletionCount: bp.minCompletionCount,
-		LevMinimum:         bp.levMinimum,
-		DistanceCut:        bp.distanceCut,
-		CacheTTL:           bp.cacheTTLSeconds,
-		StreetCount:        bp.streetCount,
-		LocationCount:      bp.locationCount,
-		HouseNumberCount:   bp.houseNumberCount,
-		PrefixCount:        bp.prefixCount,
-		CacheMetrics:       bp.cache.Metrics,
-		AvgLookupTime:      bp.avgQueryTime,
-		QueryCount:         bp.queryCount,
-	}
-}
-
 // computePrefixMap associates prefixes with completions xor places.
 func (bp *Places) computePrefixMap() {
 
 	pm := make(map[string]*prefix)
 
-	for d := 1; d <= bp.maxPrefixLength; d++ {
+	for d := 1; d <= bp.config.MaxPrefixLength; d++ {
 		for _, p := range bp.streetsAndLocations {
 			runes := []rune(p.simpleName)
 			runesLen := len(runes)
@@ -545,12 +456,12 @@ func (bp *Places) computePrefixMap() {
 				pm[prefixStr] = &prefix{}
 			}
 
-			// append this place as a completion and place if below maxPrefixLength and
+			// append this place as a completion and place if below MaxPrefixLength and
 			// - its id exactly matches the current prefix or
 			// - we don't have enough completions yet
-			if d < bp.maxPrefixLength {
-				if remainderLength == 0 || len(pm[prefixStr].completions) < bp.minCompletionCount {
-					r := result{
+			if d < bp.config.MaxPrefixLength {
+				if remainderLength == 0 || len(pm[prefixStr].completions) < bp.config.MinCompletionCount {
+					r := Result{
 						Distance: remainderLength,
 						Place:    p,
 					}
@@ -560,7 +471,7 @@ func (bp *Places) computePrefixMap() {
 				}
 			} else {
 
-				// we are at or above maxPrefixLength thus at the place as place
+				// we are at or above MaxPrefixLength thus at the place as place
 				pm[prefixStr].places = append(pm[prefixStr].places, p)
 			}
 		}
@@ -571,9 +482,9 @@ func (bp *Places) computePrefixMap() {
 
 // updateRelevance increases the relevance for each exact match in the results
 // slice and returns a slice containing the updated elements (if any).
-func (bp *Places) updateRelevance(results []*result, simpleInput string) []*place {
+func (bp *Places) updateRelevance(results []*Result, simpleInput string) []*Place {
 
-	var updatedPlaces []*place
+	var updatedPlaces []*Place
 
 	// for each result
 	for _, r := range results {
@@ -598,7 +509,7 @@ func (bp *Places) updateRelevance(results []*result, simpleInput string) []*plac
 
 // updateCompletions updates completions for the given places (which must have
 // all the same simpleName - see updateRelevance).
-func (bp *Places) updateCompletions(updatedPlaces []*place) {
+func (bp *Places) updateCompletions(updatedPlaces []*Place) {
 
 	simpleName := updatedPlaces[0].simpleName
 	runes := []rune(simpleName)
@@ -611,7 +522,7 @@ func (bp *Places) updateCompletions(updatedPlaces []*place) {
 		}
 	}
 
-	for d := 1; d < min(bp.maxPrefixLength, runesLen); d++ {
+	for d := 1; d < min(bp.config.MaxPrefixLength, runesLen); d++ {
 
 		prefixStr := string(runes[:d])
 
@@ -624,10 +535,10 @@ func (bp *Places) updateCompletions(updatedPlaces []*place) {
 		// do Levenshtein on the merged places wrt. the prefix string
 		results := bp.levenshtein(mergedPlaces, prefixStr)
 
-		var newCompletions []*result
-		var newPlaces []*place
+		var newCompletions []*Result
+		var newPlaces []*Place
 		for _, r := range results {
-			if r.Place.simpleName == prefixStr || len(newCompletions) < bp.minCompletionCount {
+			if r.Place.simpleName == prefixStr || len(newCompletions) < bp.config.MinCompletionCount {
 				newCompletions = append(newCompletions, r)
 				newPlaces = append(newPlaces, r.Place)
 			}
@@ -639,12 +550,12 @@ func (bp *Places) updateCompletions(updatedPlaces []*place) {
 	}
 }
 
-func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
+func (bp *Places) levenshtein(places []*Place, simpleInput string) []*Result {
 
 	// for each place compute the Levenshtein-Distance between its simple name and the given simple input
-	results := make([]*result, len(places))
+	results := make([]*Result, len(places))
 	for i, p := range places {
-		results[i] = &result{
+		results[i] = &Result{
 			Distance: levenshtein.ComputeDistance(simpleInput, p.simpleName),
 			Place:    p,
 		}
@@ -655,12 +566,12 @@ func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 		return bp.resultRanking(results[i], results[j])
 	})
 
-	// compute the number of completions to return (i.e. all exact matches filled up to minCompletionCount)
-	count := min(bp.minCompletionCount, len(results))
+	// compute the number of completions to return (i.e. all exact matches filled up to MinCompletionCount)
+	count := min(bp.config.MinCompletionCount, len(results))
 	for i := count; i < len(results); i++ {
 		if results[i].Place.simpleName == simpleInput {
 
-			// we are past minCompletionCount but still have an exact match, therefore add it
+			// we are past MinCompletionCount but still have an exact match, therefore add it
 			count += 1
 		} else {
 
@@ -676,18 +587,18 @@ func (bp *Places) levenshtein(places []*place, simpleInput string) []*result {
 func (bp *Places) updateMetrics(duration time.Duration) {
 	bp.m.Lock()
 	defer bp.m.Unlock()
-	bp.queryCount += 1
-	if bp.avgQueryTime == 0 {
-		bp.avgQueryTime = duration
+	bp.metrics.QueryCount += 1
+	if bp.metrics.AvgLookupTime == 0 {
+		bp.metrics.AvgLookupTime = duration
 	} else {
-		bp.avgQueryTime = (bp.avgQueryTime + duration) / 2
+		bp.metrics.AvgLookupTime = (bp.metrics.AvgLookupTime + duration) / 2
 	}
 }
 
 // resultRanking compares two levenshtein results wrt. distance, relevance, class, and (in case of streets) length.
 // resultRanking returns true, if the first place should be ranked higher than the second one. resultRanking should
 // be used in sorting slices (analog to the lesser function) sorting higher ranks to the beginning.
-func (bp *Places) resultRanking(i, j *result) bool {
+func (bp *Places) resultRanking(i, j *Result) bool {
 
 	di := i.Distance
 	dj := j.Distance
@@ -702,10 +613,10 @@ func (bp *Places) resultRanking(i, j *result) bool {
 		}
 	}
 
-	// If none of the results is an exact match but the delta in distances is greater than distanceCut
+	// If none of the results is an exact match but the delta in distances is greater than DistanceCut
 	// the one with the smaller distance will be ranked higher.
 	distanceDelta := abs(di - dj)
-	if distanceDelta > bp.distanceCut {
+	if distanceDelta > bp.config.DistanceCut {
 		if di < dj {
 			return true
 		} else {
@@ -716,7 +627,7 @@ func (bp *Places) resultRanking(i, j *result) bool {
 	pi := i.Place
 	pj := j.Place
 
-	// As there is no exact match and the delta in distances is within distanceCut,
+	// As there is no exact match and the delta in distances is within DistanceCut,
 	// rank by relevance (if different).
 	if pi.Relevance != pj.Relevance {
 		if pi.Relevance > pj.Relevance {
@@ -737,7 +648,7 @@ func (bp *Places) resultRanking(i, j *result) bool {
 
 	// results have same distance and relevance, rank streets over locations
 	if pi.Class != pj.Class {
-		if pi.Class == streetClass {
+		if pi.Class == Street {
 			return true
 		} else {
 			return false
@@ -745,7 +656,7 @@ func (bp *Places) resultRanking(i, j *result) bool {
 	}
 
 	// if streets, less by longer length (by the above clause, types must be equal)
-	if pi.Class == streetClass {
+	if pi.Class == Street {
 		if pi.Length > pj.Length {
 			return true
 		} else {
@@ -756,9 +667,9 @@ func (bp *Places) resultRanking(i, j *result) bool {
 	return false
 }
 
-// placeLesser compares two places wrt. string length and lexical order. placeLesser return true, if the first place
-// is less than the second one.
-func placeLesser(i, j *place) bool {
+// placeLesser compares two places wrt. string length and lexical order.
+// placeLesser return true, if the first place is less than the second one.
+func placeLesser(i, j *Place) bool {
 
 	// less by character length
 	if len(i.simpleName) != len(j.simpleName) {
@@ -783,10 +694,10 @@ func placeLesser(i, j *place) bool {
 }
 
 // deDuplicate removes duplicate places.
-func deDuplicate(results []*place) []*place {
+func deDuplicate(results []*Place) []*Place {
 
 	ids := make(map[int]interface{})
-	var places []*place
+	var places []*Place
 
 	for _, p := range results {
 		if _, exists := ids[p.ID]; !exists {
@@ -800,6 +711,7 @@ func deDuplicate(results []*place) []*place {
 
 // sanitizeString to unicode letters, spaces and minus
 func sanitizeString(s string) string {
+
 	// only unicode letters, spaces and minus
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) {
@@ -807,10 +719,12 @@ func sanitizeString(s string) string {
 		}
 		return -1
 	}, s)
+
 	// remove spaces and minus from head and tail and lower case
 	return strings.ToLower(strings.Trim(s, " -"))
 }
 
+// min returns the minimum of a and b.
 func min(a, b int) int {
 	if a < b {
 		return a
