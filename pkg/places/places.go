@@ -85,23 +85,23 @@ func (c Config) NewPlaces() (*Places, error) {
 		var streetPlace *Place
 		if streetPlaceID, ok := streetID2placeID[l.StreetID]; ok {
 			streetPlace = places.placesMap[streetPlaceID]
+			p := Place{
+				ID:          placeID,
+				Class:       Location,
+				Type:        l.Type,
+				Name:        l.Name,
+				Street:      streetPlace,
+				HouseNumber: l.HouseNumber,
+				District:    districtMap[l.Postcode],
+				Lat:         l.Lat,
+				Lon:         l.Lon,
+				simpleName:  sanitizeString(l.Name),
+			}
+			places.placesMap[placeID] = &p
+			streetPlace.locations = append(streetPlace.locations, &p)
+			placeID += 1
+			places.metrics.LocationCount += 1
 		}
-		p := Place{
-			ID:          placeID,
-			Class:       Location,
-			Type:        l.Type,
-			Name:        l.Name,
-			Street:      streetPlace,
-			HouseNumber: l.HouseNumber,
-			District:    districtMap[l.Postcode],
-			Lat:         l.Lat,
-			Lon:         l.Lon,
-			simpleName:  sanitizeString(l.Name),
-		}
-		places.placesMap[placeID] = &p
-		streetPlace.locations = append(streetPlace.locations, &p)
-		placeID += 1
-		places.metrics.LocationCount += 1
 	}
 
 	// extend places map by house numbers (assigning IDs, linking street-places and districts)
@@ -249,7 +249,7 @@ func (p *Place) MarshalJSON() ([]byte, error) {
 		ID          int     `json:"id"`
 		Class       string  `json:"class"`
 		Type        string  `json:"type,omitempty"`
-		Name        string  `json:"name"`
+		Name        string  `json:"name,omitempty"`
 		Street      string  `json:"street,omitempty"`
 		StreetID    *int    `json:"streetID,omitempty"`
 		HouseNumber string  `json:"houseNumber,omitempty"`
@@ -299,7 +299,7 @@ const (
 
 // String implements the stringer interface for Class.
 func (c Class) String() string {
-	return [...]string{"street", "location", "csvHouseNumber"}[c]
+	return [...]string{"street", "location", "houseNumber"}[c]
 }
 
 // prefix represents precomputed completions and places for a given prefix

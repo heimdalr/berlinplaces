@@ -36,7 +36,7 @@ street_id,housenumber,postcode,lat,lon
 `
 
 	gocsv.SetHeaderNormalizer(func(s string) string {
-		return strings.Trim(strings.ToLower(s), "_")
+		return strings.ReplaceAll(strings.ToLower(s), "_", "")
 	})
 
 	d := data.Data{}
