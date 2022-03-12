@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"os"
+	"strings"
 )
 
 type CSVProvider struct {
@@ -13,7 +14,15 @@ type CSVProvider struct {
 	HouseNumbersFile string
 }
 
+// normalizer is the function to apply to headers and struct fields before trying to match.
+// see: https://pkg.go.dev/github.com/gocarina/gocsv#Normalizer
+func normalizer(s string) string {
+	return strings.Trim(strings.ToLower(s), "_")
+}
+
 func (p CSVProvider) Get() (*Data, error) {
+
+	gocsv.SetHeaderNormalizer(normalizer)
 
 	d := Data{}
 
