@@ -40,15 +40,16 @@ type Places struct {
 }
 
 // NewPlaces initializes a new Places object.
-func (c Config) NewPlaces() (*Places, error) {
+func (c Config) NewPlaces(dataProvider data.Provider) (*Places, error) {
 
 	// basic init
 	places := Places{config: &c, metrics: &Metrics{}}
 
-	if c.DataProvider == nil {
-		return nil, fmt.Errorf("no data provider configured")
+	// get the "raw" data
+	if dataProvider == nil {
+		return nil, fmt.Errorf("data provider must not be nil")
 	}
-	loaded, err := c.DataProvider.Get()
+	loaded, err := dataProvider.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -182,9 +183,6 @@ type Config struct {
 	// Duration to wait before evicting cache entries (in order to consider
 	// potentially changed relevance values).
 	CacheTTL time.Duration `json:"cacheTTL"`
-
-	// The data provider.
-	DataProvider data.Provider
 }
 
 // DefaultConfig is the default configuration for Places.

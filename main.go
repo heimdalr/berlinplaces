@@ -151,11 +151,10 @@ func (app *application) initialize() error {
 		MinLev:             viper.GetInt("MIN_LEV"),
 		DistanceCut:        viper.GetInt("DISTANCE_CUT"),
 		CacheTTL:           viper.GetDuration("CACHE_TTL"),
-		DataProvider:       dataProvider,
 	}
 
 	// initialize (berlin) places
-	p, err := placesConfig.NewPlaces()
+	p, err := placesConfig.NewPlaces(dataProvider)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize places: %w", err))
 	}

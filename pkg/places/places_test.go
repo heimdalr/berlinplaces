@@ -66,9 +66,7 @@ street_id,housenumber,postcode,lat,lon
 
 func TestPlaces_GetCompletions(t *testing.T) {
 
-	config := places.DefaultConfig
-	config.DataProvider = testProvider{}
-	p, err := config.NewPlaces()
+	p, err := places.DefaultConfig.NewPlaces(testProvider{})
 	if err != nil {
 		t.Fatal(fmt.Errorf("failed to init places: %w", err))
 	}
