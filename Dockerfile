@@ -58,9 +58,7 @@ COPY --from=buildstage /builddir/places ./
 COPY swagger/ ./swagger/
 COPY demo/ ./demo/
 COPY _data/districts.csv ./_data/districts.csv
-COPY _data/streets.csv ./_data/streets.csv
-COPY _data/locations.csv ./_data/locations.csv
-COPY _data/housenumbers.csv ./_data/housenumbers.csv
+COPY _data/places.csv ./_data/places.csv
 
 # use api user
 USER api:api
