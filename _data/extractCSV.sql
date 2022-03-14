@@ -485,7 +485,7 @@ create table places_dump (
    type VARCHAR, -- for locations it describes the location e.g. restaurant or hotel
    name VARCHAR, -- for streets the name of the street for locations the name of the location
    street_id bigint,   
-   housenumber VARCHAR,
+   house_number VARCHAR,
    postcode VARCHAR not null,
    length integer, -- for streets the length of the street 
    lat float,
@@ -505,7 +505,7 @@ select
 	from streets;
 
 
-insert into places_dump (id, type, name, street_id, housenumber, postcode, lat, lon)
+insert into places_dump (id, type, name, street_id, house_number, postcode, lat, lon)
 	select
 		id + 4294967296,
 		type,
@@ -518,7 +518,7 @@ insert into places_dump (id, type, name, street_id, housenumber, postcode, lat, 
 	from locations
 	where street_id is not null;
 
-insert into places_dump (id, street_id, housenumber, postcode, lat, lon)
+insert into places_dump (id, street_id, house_number, postcode, lat, lon)
 	select 
 		id + 8589934592,
 		street_id, 
@@ -528,6 +528,4 @@ insert into places_dump (id, street_id, housenumber, postcode, lat, lon)
 		ST_X(centroid)
 	from housenumbers
 	where street_id is not null;
-
-select * from places_dump pd where id > 4294967296;
 

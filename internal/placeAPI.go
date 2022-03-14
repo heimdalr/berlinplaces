@@ -43,9 +43,9 @@ func (placesAPI PlacesAPI) GetPlace(w http.ResponseWriter, r *http.Request, ps h
 
 	// parse the place ID
 	placeIDStr := ps.ByName("placeID")
-	var placeID int
+	var placeID int64
 	if placeIDStr != "" {
-		id, err := strconv.Atoi(placeIDStr)
+		id, err := strconv.ParseInt(placeIDStr, 10, 64)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return

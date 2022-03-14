@@ -90,9 +90,7 @@ func viperSetup() {
 	viper.SetDefault("CACHE_TTL", c.CacheTTL)
 
 	viper.SetDefault("DISTRICTS_CSV", "_data/districts.csv") // relative to project root
-	viper.SetDefault("STREETS_CSV", "_data/streets.csv")
-	viper.SetDefault("LOCATIONS_CSV", "_data/locations.csv")
-	viper.SetDefault("HOUSE_NUMBERS_CSV", "_data/housenumbers.csv")
+	viper.SetDefault("PLACES_CSV", "_data/places.csv")
 
 	// set defaults for whether to enable swagger-docs depending on DEBUG
 	if viper.GetBool("DEBUG") {
@@ -136,12 +134,30 @@ func (app *application) initialize() error {
 		})
 	}
 
-	// init the CSV data provider
+	// open (close) districts CSV file
+	districtsFileName := viper.GetString("DISTRICTS_CSV")
+	districtsReader, err := os.Open(districtsFileName)
+	if err != nil {
+		return fmt.Errorf("failed to open '%s': %w", districtsFileName, err)
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(districtsReader)
+
+	// open (close) places CSV file
+	placesFileName := viper.GetString("PLACES_CSV")
+	placesReader, err := os.Open(placesFileName)
+	if err != nil {
+		return fmt.Errorf("failed to open '%s': %w", placesFileName, err)
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(placesReader)
+
+	// init the data provider
 	dataProvider := data.CSVProvider{
-		DistrictsFile:    viper.GetString("DISTRICTS_CSV"),
-		StreetsFile:      viper.GetString("STREETS_CSV"),
-		LocationsFile:    viper.GetString("LOCATIONS_CSV"),
-		HouseNumbersFile: viper.GetString("HOUSE_NUMBERS_CSV"),
+		DistrictsReader: districtsReader,
+		PlacesReader:    placesReader,
 	}
 
 	// places configuration
@@ -154,6 +170,7 @@ func (app *application) initialize() error {
 	}
 
 	// initialize (berlin) places
+
 	p, err := placesConfig.NewPlaces(dataProvider)
 	if err != nil {
 		panic(fmt.Errorf("failed to initialize places: %w", err))
@@ -162,9 +179,9 @@ func (app *application) initialize() error {
 	// log basic stats about places
 	metrics := p.Metrics()
 	log.Info().
-		Int("streetCount", metrics.StreetCount).
-		Int("locationCount", metrics.LocationCount).
-		Int("houseNumberCount", metrics.HouseNumberCount).
+		Int32("streetCount", metrics.StreetCount).
+		Int32("locationCount", metrics.LocationCount).
+		Int32("houseNumberCount", metrics.HouseNumberCount).
 		Int("prefixCount", metrics.PrefixCount).
 		Msg("places")
 

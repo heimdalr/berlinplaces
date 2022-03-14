@@ -3,19 +3,30 @@ package data
 import (
 	"fmt"
 	"github.com/gocarina/gocsv"
-	"os"
+	"github.com/heimdalr/berlinplaces/pkg/places"
+	"io"
 	"strings"
 )
 
+type CSVPlace struct {
+	ID          int64
+	Type        string
+	Name        string
+	StreetID    int64
+	HouseNumber string
+	Postcode    string
+	Length      int
+	Lat         float64
+	Lon         float64
+}
+
 type CSVProvider struct {
-	DistrictsFile    string
-	StreetsFile      string
-	LocationsFile    string
-	HouseNumbersFile string
+	DistrictsReader io.Reader
+	PlacesReader    io.Reader
 }
 
 // Get implements the Provider interface for CSVProvider.
-func (p CSVProvider) Get() (*Data, error) {
+func (provider CSVProvider) Get() (places.DistrictMap, places.PlaceMap, *places.Metrics, error) {
 
 	// normalizer is the function to apply to headers and struct fields before trying to match.
 	// see: https://pkg.go.dev/github.com/gocarina/gocsv#Normalizer
@@ -23,48 +34,77 @@ func (p CSVProvider) Get() (*Data, error) {
 		return strings.ReplaceAll(strings.ToLower(s), "_", "")
 	})
 
-	d := Data{}
+	districtsMap := make(places.DistrictMap)
 
-	jobs := []struct {
-		fileName string
-		data     interface{}
-	}{
-		{p.DistrictsFile, &d.Districts},
-		{p.StreetsFile, &d.Streets},
-		{p.LocationsFile, &d.Locations},
-		{p.HouseNumbersFile, &d.HouseNumbers},
-	}
-
-	for _, j := range jobs {
-
-		err := unmarshall(j.fileName, j.data)
-		if err != nil {
-			return nil, err
+	// unmarshall districts into map
+	districtsChan := make(chan *places.District)
+	districtsDoneChan := make(chan bool)
+	go func() {
+		for district := range districtsChan {
+			districtsMap[district.Postcode] = district
 		}
+		districtsDoneChan <- true
+	}()
+	if err := gocsv.UnmarshalToChan(provider.DistrictsReader, districtsChan); err != nil {
+		return nil, nil, nil, err
 	}
+	<-districtsDoneChan
 
-	return &d, nil
-}
+	// unmarshall places into map
+	placeMap := make(places.PlaceMap)
+	counts := make(map[places.Class]int32)
+	placesChan := make(chan CSVPlace)
+	placesDoneChan := make(chan bool)
+	go func() {
+		for csvPlace := range placesChan {
 
-// unmarshall unmarshalls a single file.
-func unmarshall(fileName string, data interface{}) error {
+			place := places.Place{}
 
-	// open the CSV file
-	file, err := os.Open(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to open '%s': %w", fileName, err)
+			place.ID = csvPlace.ID
+			place.Class = places.Class(csvPlace.ID >> 32)
+			place.Type = csvPlace.Type
+			place.Name = csvPlace.Name
+			if place.Class == places.LocationClass || place.Class == places.HouseNumberClass {
+				street, exists := placeMap[csvPlace.StreetID]
+				if !exists {
+					panic(fmt.Errorf("a street (place) with the id '%d' does not yet exist", csvPlace.StreetID))
+				}
+				place.Street = street
+			}
+			place.HouseNumber = csvPlace.HouseNumber
+			district, exists := districtsMap[csvPlace.Postcode]
+			if !exists {
+				panic(fmt.Errorf("a district (postcode) with the id '%s' does not exist", csvPlace.Postcode))
+			}
+			place.District = district
+			if place.Class == places.StreetClass && csvPlace.Length > 0 {
+				place.Length = csvPlace.Length
+			}
+			place.Lat = csvPlace.Lat
+			place.Lon = csvPlace.Lon
+			if place.Class == places.StreetClass || place.Class == places.LocationClass {
+				simpleName := places.SanitizeString(csvPlace.Name)
+				place.SimpleName = simpleName
+			}
+			if place.Class == places.HouseNumberClass {
+				place.Street.HouseNumbers = append(place.Street.HouseNumbers, &place)
+			}
+
+			placeMap[place.ID] = &place
+
+			counts[place.Class] += 1
+		}
+		placesDoneChan <- true
+	}()
+	if err := gocsv.UnmarshalToChan(provider.PlacesReader, placesChan); err != nil {
+		return nil, nil, nil, err
 	}
+	<-placesDoneChan
 
-	// unmarshall into given interface
-	err = gocsv.Unmarshal(file, data)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshall '%s' data: %w", fileName, err)
+	metrics := places.Metrics{
+		StreetCount:      counts[places.StreetClass],
+		LocationCount:    counts[places.LocationClass],
+		HouseNumberCount: counts[places.HouseNumberClass],
 	}
-
-	err = file.Close()
-	if err != nil {
-		return fmt.Errorf("failed to clode '%s': %w", fileName, err)
-	}
-
-	return nil
+	return districtsMap, placeMap, &metrics, nil
 }
