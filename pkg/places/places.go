@@ -63,13 +63,12 @@ func (c Config) NewPlaces(dataProvider data.Provider) (*Places, error) {
 	// convert street list to place map (reassigning IDs and linking districts)
 	places.placesMap = make(map[int]*Place)
 	var placeID int
-	var streetID2placeID = make(map[int]int)
+	var streetID2placeID = make(map[string]int)
 	for _, street := range loaded.Streets {
 		places.placesMap[placeID] = &Place{
 			ID:         placeID,
 			Class:      Street,
 			Name:       street.Name,
-			cluster:    street.Cluster,
 			District:   districtMap[street.Postcode],
 			Lat:        street.Lat,
 			Lon:        street.Lon,
@@ -210,7 +209,6 @@ type Place struct {
 	Class        Class
 	Type         string
 	Name         string
-	cluster      string
 	Street       *Place // in case of a location or a house number, this links (up) to the street
 	HouseNumber  string
 	District     *data.District // this links to the postcode and district

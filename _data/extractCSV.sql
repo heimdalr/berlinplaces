@@ -463,49 +463,71 @@ insert into locations
  */ 
 	   
 drop table if exists districts_dump;
-create table districts_dump as (
+create table districts_dump (
+   postcode varchar primary key,
+   district varchar not null
+);
+insert into districts_dump (postcode, district)
 	select 
 		postcode,
 	 	district
 	from districts
-);	   
+;	   
 
-drop table if exists streets_dump;
-create table streets_dump as (
-	select 
-	 	concat('s', id) as id,
+-- The `SERIAL` type is 1..2^31 - 1 (2147483647). 
+-- To get a unique place IDs over streets, locations and housenumbers, we add 
+-- - 2^32 (0x100000000 / 4294967296) for locations and 
+-- - 2^33 (0x200000000 / 8589934592) for streets.
+-- The type can then be derived via id >> 32 (0 == street, 1 == location, 2 == housenumber).
+drop table if exists places_dump;
+create table places_dump (
+   id bigint primary key, 
+   type VARCHAR, -- for locations it describes the location e.g. restaurant or hotel
+   name VARCHAR, -- for streets the name of the street for locations the name of the location
+   street_id bigint,   
+   housenumber VARCHAR,
+   postcode VARCHAR not null,
+   length integer, -- for streets the length of the street 
+   lat float,
+   lon float,
+   constraint fk_districts foreign key(postcode) references districts_dump(postcode),
+   constraint fk_street foreign key(street_id) references places_dump(id)
+);
+
+insert into places_dump (id, name, postcode, lat, lon, length)
+select 
+	 	id,
 	 	name, 
-	 	cluster_id as cluster,
 	 	postcode,
-	 	ST_Y(centroid) as lat, 
-  	 	ST_X(centroid) as lon,
+	 	ST_Y(centroid), 
+  	 	ST_X(centroid),
   	 	length
-	from streets
-);
+	from streets;
 
-drop table if exists housenumbers_dump;
-create table housenumbers_dump as (
-	select 
-		concat('h', id) as id,
-		concat('s', street_id) as street_id, 
-		housenumber as house_number,
-		postcode,
-		ST_Y(centroid) as lat, 
-		ST_X(centroid) as lon
-	from housenumbers
-);
 
-drop table if exists locations_dump;
-create table locations_dump as (
+insert into places_dump (id, type, name, street_id, housenumber, postcode, lat, lon)
 	select
-		concat('h', id) as id,
+		id + 4294967296,
 		type,
 	 	name,
-		concat('s', street_id),
-		housenumber as house_number,
+		street_id,
+		housenumber,
 	 	postcode,
 	 	ST_Y(centroid) as lat, 
   	 	ST_X(centroid) as lon
 	from locations
-	where street_id is not null
-);
+	where street_id is not null;
+
+insert into places_dump (id, street_id, housenumber, postcode, lat, lon)
+	select 
+		id + 8589934592,
+		street_id, 
+		housenumber,
+		postcode,
+		ST_Y(centroid), 
+		ST_X(centroid)
+	from housenumbers
+	where street_id is not null;
+
+select * from places_dump pd where id > 4294967296;
+

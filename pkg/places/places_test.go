@@ -20,19 +20,19 @@ postcode,csvDistrict
 10961,Friedrichshain-Kreuzberg
 `
 	streetsCSV := `
-id,name,cluster,postcode,lat,lon,length
-1,Elisabeth-Feller-Weg,1,12524,52.51121427531362,13.433862108201659, 10
-2,Aachener Straße,1,10961,52.48010401206288,13.318894891444728, 100
-3,Aalemannufer,1,10961,52.57313191552375,13.218142687594606, 1000
+id,name,postcode,lat,lon,length
+s1,Elisabeth-Feller-Weg,12524,52.51121427531362,13.433862108201659, 10
+s2,Aachener Straße,10961,52.48010401206288,13.318894891444728, 100
+s3,Aalemannufer,10961,52.57313191552375,13.218142687594606, 1000
 `
 
 	locationsCSV := `
-type,name,street_id,housenumber,postcode,lat,lon
-restaurant,Strandlust,1,3a,12527,52.3762307,13.657224
+id,type,name,street_id,housenumber,postcode,lat,lon
+l1,restaurant,Strandlust,s1,3a,12527,52.3762307,13.657224
 `
 	housenumbersCSV := `
-street_id,housenumber,postcode,lat,lon
-1,1,12524,52.4127212,13.5714066
+id,street_id,housenumber,postcode,lat,lon
+h1,s1,1,12524,52.4127212,13.5714066
 `
 
 	gocsv.SetHeaderNormalizer(func(s string) string {

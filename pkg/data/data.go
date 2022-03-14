@@ -6,9 +6,8 @@ type District struct {
 }
 
 type Street struct {
-	ID       int
+	ID       string
 	Name     string
-	Cluster  string
 	Postcode string
 	Lat      float64
 	Lon      float64
@@ -16,9 +15,10 @@ type Street struct {
 }
 
 type Location struct {
+	ID          string
 	Type        string
 	Name        string
-	StreetID    int
+	StreetID    string
 	HouseNumber string
 	Postcode    string
 	Lat         float64
@@ -26,7 +26,8 @@ type Location struct {
 }
 
 type HouseNumber struct {
-	StreetID    int
+	ID          string
+	StreetID    string
 	HouseNumber string
 	Postcode    string
 	Lat         float64
