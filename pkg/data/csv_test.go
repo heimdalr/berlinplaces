@@ -28,7 +28,7 @@ func TestCSVProvider_Get(t *testing.T) {
 		DistrictsReader: strings.NewReader(DistrictsCSV),
 		PlacesReader:    strings.NewReader(PlacesCSV),
 	}
-	districts, placesMap, counts, err := p.Get()
+	districts, placesMap, metrics, err := p.Get()
 	if err != nil {
 		t.Errorf("Got error = %v", err)
 	}
@@ -39,9 +39,9 @@ func TestCSVProvider_Get(t *testing.T) {
 	if districtCount != wantDistrictCount {
 		t.Errorf("Got %d districts, want %d", districtCount, wantDistrictCount)
 	}
-	wantCounts := map[places.Class]int32{places.StreetClass: 3, places.LocationClass: 1, places.HouseNumberClass: 1}
-	if !reflect.DeepEqual(counts, wantCounts) {
-		t.Errorf("Got %v places, want %v", counts, wantCounts)
+	wantMetrics := places.Metrics{StreetCount: 3, LocationCount: 1, HouseNumberCount: 1}
+	if !reflect.DeepEqual(*metrics, wantMetrics) {
+		t.Errorf("Got %v places, want %v", metrics, wantMetrics)
 	}
 
 	// house number was added to street with id 1

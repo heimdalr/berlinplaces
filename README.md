@@ -81,7 +81,7 @@ which will result in something like:
       "length": 236,
       "lat": 52.513022715666686,
       "lon": 13.333934396722077,
-      "relevance": 0
+      "relevance": 3
     }
   },
   {
