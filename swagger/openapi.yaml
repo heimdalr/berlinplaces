@@ -1,7 +1,7 @@
 openapi: 3.0.2
 info:
   title: places
-  version: 1.0.1
+  version: 1.1.0
   description: |
     **autocomplete** and **geocode** locations (i.e. bars, pubs, hotels), streets (i.e. street names) and buildings 
     (i.e. housenumbers in streets) (see [example](/demo))
@@ -25,7 +25,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/version'
               example:
-                version: 1.0.1
+                version: 1.1.0
                 hash: 8e7632a88eb9c1c51290fc52d3b06473fcfb20d8
   /metrics:
     get:
