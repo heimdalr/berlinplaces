@@ -384,6 +384,7 @@ $$ LANGUAGE plpgsql;
  */
 drop table if exists housenumbers;
 create table housenumbers (
+   id SERIAL primary key,
    place_id integer,
    street_id integer,
    housenumber VARCHAR,
@@ -419,6 +420,7 @@ insert into	housenumbers
  */
 drop table if exists locations;
 create table locations (
+   id SERIAL primary key,	
    place_id VARCHAR not null,
    street_id integer,
    class VARCHAR not null,
@@ -471,7 +473,7 @@ create table districts_dump as (
 drop table if exists streets_dump;
 create table streets_dump as (
 	select 
-	 	id,
+	 	concat('s', id) as id,
 	 	name, 
 	 	cluster_id as cluster,
 	 	postcode,
@@ -484,7 +486,8 @@ create table streets_dump as (
 drop table if exists housenumbers_dump;
 create table housenumbers_dump as (
 	select 
-		street_id, 
+		concat('h', id) as id,
+		concat('s', street_id) as street_id, 
 		housenumber as house_number,
 		postcode,
 		ST_Y(centroid) as lat, 
@@ -494,10 +497,11 @@ create table housenumbers_dump as (
 
 drop table if exists locations_dump;
 create table locations_dump as (
-	select 
+	select
+		concat('h', id) as id,
 		type,
 	 	name,
-		street_id,
+		concat('s', street_id),
 		housenumber as house_number,
 	 	postcode,
 	 	ST_Y(centroid) as lat, 
