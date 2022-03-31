@@ -130,7 +130,7 @@ func (app *application) initialize() error {
 	if viper.GetBool("DEMO") {
 		router.ServeFiles("/demo/*filepath", http.Dir("demo"))
 		router.GET("/", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-			http.Redirect(w, r, "/demo/", 301)
+			http.Redirect(w, r, "/demo/", http.StatusTemporaryRedirect)
 		})
 	}
 
