@@ -80,7 +80,7 @@ func (placesAPI PlacesAPI) GetPlace(w http.ResponseWriter, r *http.Request, ps h
 }
 
 func (placesAPI PlacesAPI) GetMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	m := placesAPI.Places.Metrics()
+	m := placesAPI.Metrics()
 	j, err := json.Marshal(m)
 	if err != nil {
 		panic(fmt.Errorf("failed to marshall metrics: %w", err))
