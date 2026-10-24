@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/agnivade/levenshtein v1.1.1
 	github.com/dgraph-io/ristretto v0.1.0
-	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
+	github.com/gocarina/gocsv v0.0.0-20261012193826-401c25af6907
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/viper v1.10.1
