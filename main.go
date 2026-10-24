@@ -215,12 +215,12 @@ func (app *application) run() {
 
 	// start the server (in a goroutine)
 	go func() {
-		if err := app.Server.ListenAndServe(); err != http.ErrServerClosed {
+		if err := app.ListenAndServe(); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("server failed")
 		}
 	}()
 
-	log.Info().Msgf("listening on http://localhost:%s", strings.TrimLeft(app.Server.Addr, ":"))
+	log.Info().Msgf("listening on http://localhost:%s", strings.TrimLeft(app.Addr, ":"))
 }
 
 // shutdown shuts the application down.
@@ -230,7 +230,7 @@ func (app *application) shutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	log.Info().Msg("gracefully shutting down")
 	defer cancel()
-	if err := app.Server.Shutdown(ctx); err != nil {
+	if err := app.Shutdown(ctx); err != nil {
 		log.Error().Err(err).Msg("server shutdown failed")
 	}
 }
